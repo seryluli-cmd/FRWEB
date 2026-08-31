@@ -67,7 +67,7 @@ const NEUTRAL_VAR = "var(--text-muted)";
 // único que cambia es que goToNegocioOrHome() deja de saltear la pantalla
 // de elegir negocio en cuanto el array tiene más de un elemento.
 const NEGOCIOS = [
-  { id: "frcentral", nombre: "FRCentral", emoji: "⌨️", color: "var(--series-1)" }
+  { id: "gestionfr", nombre: "Gestion FR", emoji: "⌨️", color: "var(--series-1)" }
 ];
 
 let fbApp = null, auth = null, db = null, storage = null;
@@ -82,7 +82,7 @@ let gastos = [];           // TODOS los gastos — [{id, importe, descripcion, c
 let facturaciones = [];    // TODOS los cierres diarios — [{id, importe, registradoPor, fecha, negocio}]
 let ideas = [];            // Ideas de mejora — [{id, texto, estado, propuestoPor, creadoEn}]
 let reportes = [];         // Reportes de mantenimiento — [{id, texto, estado, propuestoPor, votos, creadoEn}]
-let negocioActual = null;  // "frcentral" (siempre — acá hay un solo negocio)
+let negocioActual = null;  // "gestionfr" (siempre — acá hay un solo negocio)
 let seccionActual = null;  // "gastos" | "facturado" | "resumen"
 let selectedPagador = null;
 let selectedRegistrador = null;
@@ -576,7 +576,7 @@ function selectNegocio(id) {
 }
 
 // ---------- Selector de sección (Gastos / Facturado) ----------
-// El título "FRCENTRAL" y la bajada quedaron fijos en el HTML (sin ícono,
+// El título "GESTION FR" y la bajada quedaron fijos en el HTML (sin ícono,
 // para ganar espacio vertical y que entren todas las tarjetas) — ya no
 // dependen de biz.nombre/biz.emoji como el resto de las pantallas.
 function renderSeccionCards(biz) {

@@ -1,6 +1,6 @@
-# Gastos — FRCentral
+# Gestion FR
 
-PWA en JavaScript vanilla (sin build, sin frameworks) para que **FRCentral**
+PWA en JavaScript vanilla (sin build, sin frameworks) para que **Gestion FR**
 ⌨️ registre gastos, facturación diaria y un checklist de ideas/metas del
 negocio. La usa el dueño (admin) y sus empleados desde el celular como app
 instalada (Firestore la mantiene sincronizada entre todos los dispositivos en

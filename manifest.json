@@ -1,7 +1,7 @@
 {
-  "name": "Gastos — FRCentral",
-  "short_name": "Gastos FR",
-  "description": "Registro de gastos y facturación — FRCentral",
+  "name": "Gestion FR",
+  "short_name": "Gestion FR",
+  "description": "Registro de gastos y facturación — Gestion FR",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
