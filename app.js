@@ -164,11 +164,16 @@ function turnoVencimiento(diaBase, turno) {
 // lugar normal, en vez de quedar afuera de la grilla. No se extiende a
 // meses anteriores: ahí ya no tiene sentido reconstruir la grilla
 // retroactivamente.
-function turnosDelMesActual() {
+// slots de un mes dado (base = cualquier fecha de ese mes). Si es el mes en
+// curso, llega hasta hoy; si es un mes ya cerrado, llega hasta su último día
+// — así la detección de "caja no cargada" también funciona navegando atrás.
+function turnosDelMes(base) {
   const now = new Date();
-  const dia = new Date(now.getFullYear(), now.getMonth(), 1);
+  const esMesActual = base.getMonth() === now.getMonth() && base.getFullYear() === now.getFullYear();
+  const dia = new Date(base.getFullYear(), base.getMonth(), 1);
+  const fin = esMesActual ? now : new Date(base.getFullYear(), base.getMonth() + 1, 0);
   const slots = [];
-  while (dia <= now) {
+  while (dia <= fin) {
     const turnosDelDia = esDiaDomingo(dia) ? ["mañana", "noche"] : TURNOS;
     turnosDelDia.forEach(turno => slots.push({ fecha: new Date(dia), turno }));
     dia.setDate(dia.getDate() + 1);
@@ -178,6 +183,7 @@ function turnosDelMesActual() {
 
 let resumenMesOffset = 0;  // 0 = mes actual, -1 = mes anterior, etc. (Resumen mensual)
 let gastosMesOffset = 0;   // ídem, para la pantalla de Gastos — se reinicia a 0 cada vez que se entra
+let facturadoMesOffset = 0; // ídem, para la pantalla de Facturado/Cierre de turno
 let pendingFirebaseConfig = null; // config guardada entre el paso 1 y 2 del setup inicial
 let usuarioActual = null;  // nombre con el que se identificó este celular (ver resumeSession)
 let esAdmin = false;       // usuarioActual ∈ admins
@@ -638,6 +644,7 @@ function selectSeccion(id) {
     renderBalance();
     showScreen("screen-app");
   } else if (id === "facturado") {
+    facturadoMesOffset = 0; // siempre arranca en el mes actual al entrar
     renderFacturado();
     showScreen("screen-facturado");
   } else if (id === "resumen") {
@@ -896,42 +903,65 @@ function renderCierreFaltante(fecha, turno) {
   return li;
 }
 
+// Fecha base del mes elegido en la pantalla de Facturado (ver
+// facturadoMesOffset) — mismo patrón que gastosFechaBase().
+function facturadoFechaBase() {
+  const d = new Date();
+  d.setDate(1); // evita saltos raros de mes al sumar/restar meses
+  d.setMonth(d.getMonth() + facturadoMesOffset);
+  return d;
+}
+
+// Antes la grilla de turnos era siempre la del mes en curso, y todo el
+// historial de meses anteriores se listaba entero debajo, sin agrupar —
+// con el tiempo se iba acumulando y quedaba todo mezclado. Ahora, igual
+// que Gastos, se navega un mes a la vez (con flechas ‹ ›), y la grilla de
+// "caja no cargada" se recalcula para el mes que se esté mirando.
 function renderFacturado() {
   const list = $("#facturado-list");
   const empty = $("#facturado-empty");
   list.innerHTML = "";
 
   const items = facturacionesDelNegocio();
-
   const now = new Date();
-  let totalMes = 0;
+
+  // "Hoy" es siempre el día real, sin importar qué mes se esté navegando.
   let totalHoy = 0;
   const turnosHoy = new Set();
-
   items.forEach(f => {
     const fecha = fechaDeRegistro(f);
-    if (fecha.getMonth() === now.getMonth() && fecha.getFullYear() === now.getFullYear()) {
-      totalMes += Number(f.importe) || 0;
-    }
     if (fecha.toDateString() === now.toDateString()) {
       totalHoy += Number(f.importe) || 0;
       if (TURNOS.includes(f.turno)) turnosHoy.add(f.turno);
     }
   });
 
+  const base = facturadoFechaBase();
+  const targetMonth = base.getMonth();
+  const targetYear = base.getFullYear();
+  $("#facturado-mes-label").textContent = mesLabel(base);
+  const esMesActual = targetMonth === now.getMonth() && targetYear === now.getFullYear();
+  $("#btn-facturado-mes-siguiente").disabled = esMesActual;
+
+  const itemsMes = items.filter(f => {
+    const fecha = fechaDeRegistro(f);
+    return fecha.getMonth() === targetMonth && fecha.getFullYear() === targetYear;
+  });
+  const totalMes = itemsMes.reduce((sum, f) => sum + (Number(f.importe) || 0), 0);
+
   // Mapa "año-mes-día-turno" -> cierre real, para cruzarlo contra la
   // grilla de turnos esperados del mes y saber cuáles faltan.
   const porSlot = new Map();
-  items.forEach(f => {
+  itemsMes.forEach(f => {
     const fecha = fechaDeRegistro(f);
     porSlot.set(`${fecha.getFullYear()}-${fecha.getMonth()}-${fecha.getDate()}-${f.turno}`, f);
   });
 
-  // Grilla del mes en curso: día 1 hasta hoy, más reciente primero, y
-  // dentro de cada día en orden Mañana → Tarde → Noche (como pasaron de
-  // verdad). Cada slot ya vencido sale como cierre real o como faltante.
+  // Grilla del mes elegido: día 1 hasta hoy (o hasta fin de mes si ya
+  // pasó), más reciente primero, y dentro de cada día en orden Mañana →
+  // Tarde → Noche. Cada slot ya vencido sale como cierre real o faltante.
   const porDia = new Map(); // "año-mes-día" -> { fecha, turnos: [{turno, real}] }
-  turnosDelMesActual().forEach(({ fecha, turno }) => {
+  turnosDelMes(base).forEach(({ fecha, turno }) => {
     const diaKey = `${fecha.getFullYear()}-${fecha.getMonth()}-${fecha.getDate()}`;
     if (!porDia.has(diaKey)) porDia.set(diaKey, { fecha, turnos: [] });
     porDia.get(diaKey).turnos.push({ turno, real: porSlot.get(`${diaKey}-${turno}`) || null });
@@ -941,9 +971,9 @@ function renderFacturado() {
   const idsEnGrilla = new Set();
   diasDelMes.forEach(dia => dia.turnos.forEach(t => { if (t.real) idsEnGrilla.add(t.real.id); }));
 
-  // El resto del historial (meses anteriores): la grilla de faltantes solo
-  // tiene sentido para el mes en curso, no se reconstruye para atrás.
-  const historialAnterior = items
+  // Cierres del mes que no encajaron en la grilla (ej. turno con valor
+  // no estándar por datos viejos) — se listan igual, para no perderlos.
+  const restoDelMes = itemsMes
     .filter(f => !idsEnGrilla.has(f.id))
     .slice()
     .sort((a, b) => fechaDeRegistro(b) - fechaDeRegistro(a));
@@ -958,7 +988,7 @@ function renderFacturado() {
       // si no venció y no hay cierre real, todavía está en curso: no se muestra nada.
     });
   });
-  historialAnterior.forEach(f => list.appendChild(renderCierreItem(f)));
+  restoDelMes.forEach(f => list.appendChild(renderCierreItem(f)));
 
   empty.classList.toggle("hidden", list.children.length > 0);
 
@@ -2288,6 +2318,15 @@ function wireEvents() {
     if (gastosMesOffset >= 0) return;
     gastosMesOffset++;
     renderGastos();
+  });
+  $("#btn-facturado-mes-anterior").addEventListener("click", () => {
+    facturadoMesOffset--;
+    renderFacturado();
+  });
+  $("#btn-facturado-mes-siguiente").addEventListener("click", () => {
+    if (facturadoMesOffset >= 0) return;
+    facturadoMesOffset++;
+    renderFacturado();
   });
   $("#btn-export-gastos").addEventListener("click", exportGastosCSV);
   $("#btn-export-facturacion").addEventListener("click", exportFacturacionCSV);
