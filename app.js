@@ -78,6 +78,10 @@ let socios = [];           // ["Sergio"] — el/los dueño(s), entran en el repa
 let colaboradores = [];    // ["Encargada"] — pueden pagar/cargar, NO entran en el reparto
 let admins = [];           // subconjunto de nombres (normalmente socios) con permiso para editar/borrar
 let pins = {};             // { "Sergio": "1234", ... } — PIN fijo de 4 dígitos por persona (ver README: no es seguridad real, solo identificación)
+let claveMaestraAdmin = ""; // clave compartida entre los admins, solo para CREAR su PIN la primera vez
+                             // en un celular nuevo (ver openPinModal/confirmPinModal) — evita que cualquiera
+                             // tocando el nombre de un admin por primera vez se autoasigne ese PIN sin saberla.
+                             // Si no está configurada (vacía), no se pide — no es seguridad real, ver README.
 let gastos = [];           // TODOS los gastos — [{id, importe, descripcion, categoria, pagadoPor, fecha, negocio}]
 let facturaciones = [];    // TODOS los cierres diarios — [{id, importe, registradoPor, fecha, negocio}]
 let ideas = [];            // Ideas de mejora — [{id, texto, estado, propuestoPor, creadoEn}]
@@ -346,6 +350,7 @@ async function connectAndBoot(config, namesFromInput, colabFromInput) {
     colaboradores = Array.isArray(data.colaboradores) ? data.colaboradores : [];
     admins = Array.isArray(data.admins) ? data.admins : [];
     pins = data.pins && typeof data.pins === "object" ? data.pins : {};
+    claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
   } else {
     if (!namesFromInput || namesFromInput.some(n => !n.trim())) {
       throw new Error("Completá tu nombre.");
@@ -354,7 +359,8 @@ async function connectAndBoot(config, namesFromInput, colabFromInput) {
     colaboradores = (colabFromInput || []).map(n => n.trim()).filter(Boolean);
     admins = [];
     pins = {};
-    await sdk.setDoc(socioDocRef, { socios, colaboradores, admins, pins });
+    claveMaestraAdmin = "llavez";
+    await sdk.setDoc(socioDocRef, { socios, colaboradores, admins, pins, claveMaestraAdmin });
   }
 
   localStorage.setItem(LS_CONFIG_KEY, JSON.stringify(config));
@@ -452,7 +458,15 @@ function openPinModal(nombre) {
   pinFlowMode = pins[nombre] ? "verify" : "create";
   $("#pin-input-1").value = "";
   $("#pin-input-2").value = "";
+  $("#pin-input-clave-maestra").value = "";
   $("#pin-error").classList.add("hidden");
+
+  // La clave maestra solo se pide la primera vez que un ADMIN crea su PIN
+  // en un celular nuevo — no a colaboradores sin admin, y no de nuevo una
+  // vez que ya tiene PIN (ahí entra por "verify" con su PIN de siempre).
+  // Si no hay clave maestra configurada, no se pide (ver claveMaestraAdmin).
+  const requiereClaveMaestra = pinFlowMode === "create" && admins.includes(nombre) && !!claveMaestraAdmin;
+  $("#pin-field-clave-maestra").classList.toggle("hidden", !requiereClaveMaestra);
 
   if (pinFlowMode === "create") {
     $("#pin-modal-title").textContent = `Creá tu PIN, ${nombre}`;
@@ -465,7 +479,7 @@ function openPinModal(nombre) {
   }
 
   $("#modal-pin").classList.add("active");
-  setTimeout(() => $("#pin-input-1").focus(), 150);
+  setTimeout(() => $(requiereClaveMaestra ? "#pin-input-clave-maestra" : "#pin-input-1").focus(), 150);
 }
 
 function closePinModal() {
@@ -501,6 +515,13 @@ async function confirmPinModal() {
   }
 
   // pinFlowMode === "create"
+  const requiereClaveMaestra = admins.includes(pinFlowNombre) && !!claveMaestraAdmin;
+  if (requiereClaveMaestra && $("#pin-input-clave-maestra").value !== claveMaestraAdmin) {
+    errEl.textContent = "Clave maestra incorrecta. Pedísela a otro admin.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
   const pin2 = $("#pin-input-2").value.trim();
   if (pin1 !== pin2) {
     errEl.textContent = "Los PIN no coinciden.";
@@ -656,6 +677,7 @@ function listenSocios() {
       colaboradores = Array.isArray(data.colaboradores) ? data.colaboradores : [];
       admins = Array.isArray(data.admins) ? data.admins : [];
       pins = data.pins && typeof data.pins === "object" ? data.pins : {};
+      claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
       localStorage.setItem(LS_SOCIOS_CACHE, JSON.stringify(socios));
       localStorage.setItem(LS_COLAB_CACHE, JSON.stringify(colaboradores));
       esAdmin = usuarioActual ? admins.includes(usuarioActual) : false;
@@ -1587,16 +1609,26 @@ function renderAjustesSocios() {
     colaboradores.forEach((nombre) => {
       const row = document.createElement("div");
       row.className = "ajustes-socio-row";
-      const removeBtn = esAdmin
-        ? `<button type="button" class="icon-btn danger colaborador-remove-btn" data-nombre="${escapeHtml(nombre)}" aria-label="Quitar empleado" style="margin-left:auto;">🗑️</button>`
+      const esAdminColab = admins.includes(nombre);
+      const badge = esAdminColab ? `<span class="admin-badge">Admin</span>` : "";
+      // Solo el admin puede volver admin (o sacarle el admin) a un
+      // empleado — permite que alguien que no es socio (ej. otro dueño
+      // agregado como empleado para no entrar al reparto) pueda editar
+      // y borrar igual que un socio, sin tocar el cálculo de Balance.
+      const adminToggleBtn = esAdmin
+        ? `<button type="button" class="icon-btn admin-toggle-btn" data-nombre="${escapeHtml(nombre)}" aria-label="${esAdminColab ? "Quitar admin" : "Hacer admin"}" title="${esAdminColab ? "Quitar admin" : "Hacer admin"}">${esAdminColab ? "🛡️" : "🔓"}</button>`
         : "";
-      row.innerHTML = `<span class="socio-dot" style="background:${NEUTRAL_VAR}"></span> ${escapeHtml(nombre)} ${removeBtn}`;
+      const removeBtn = esAdmin
+        ? `<button type="button" class="icon-btn danger colaborador-remove-btn" data-nombre="${escapeHtml(nombre)}" aria-label="Quitar empleado">🗑️</button>`
+        : "";
+      row.innerHTML = `<span class="socio-dot" style="background:${NEUTRAL_VAR}"></span> ${escapeHtml(nombre)} ${badge}<span style="margin-left:auto;display:flex;gap:4px;">${adminToggleBtn}${removeBtn}</span>`;
       colabWrap.appendChild(row);
     });
   } else {
     colabEmpty.classList.remove("hidden");
   }
   $("#admin-add-colaborador-wrap").classList.toggle("hidden", !esAdmin);
+  $("#ajustes-clave-maestra-card").classList.toggle("hidden", !esAdmin);
 
   $("#ajustes-conn-status").textContent = auth && auth.currentUser
     ? "✅ Conectado — los gastos se sincronizan entre todos los celulares."
@@ -1640,6 +1672,55 @@ async function quitarColaborador(nombre) {
   } catch (e) {
     console.error(e);
     showToast("No se pudo quitar. Revisá tu conexión.");
+  }
+}
+
+// Hacer/sacar admin a un empleado (no cambia si entra o no al reparto —
+// eso depende solo de estar en "socios", no en "admins"). Sirve para dar
+// permisos de editar/borrar a alguien sin sumarlo al cálculo de Balance
+// (ej. otro dueño que se agrega como empleado a propósito).
+async function toggleAdminColaborador(nombre) {
+  const yaEsAdmin = admins.includes(nombre);
+  try {
+    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), {
+      admins: yaEsAdmin ? fbSdk.arrayRemove(nombre) : fbSdk.arrayUnion(nombre)
+    });
+    showToast(yaEsAdmin ? `${nombre} ya no es admin` : `${nombre} ahora es admin ✅`);
+  } catch (e) {
+    console.error(e);
+    showToast("No se pudo actualizar. Revisá tu conexión.");
+  }
+}
+
+// Cambiar la clave maestra de administradores (ver claveMaestraAdmin) —
+// cualquier admin puede hacerlo desde acá. Solo afecta a quien todavía
+// no creó su PIN en algún celular; no toca los PIN ya creados.
+async function guardarClaveMaestra() {
+  const nueva = $("#input-clave-maestra").value.trim();
+  const errEl = $("#clave-maestra-error");
+  errEl.classList.add("hidden");
+
+  if (!nueva) {
+    errEl.textContent = "Ingresá una clave.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  const btn = $("#btn-guardar-clave-maestra");
+  btn.disabled = true;
+  btn.textContent = "Guardando…";
+  try {
+    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), { claveMaestraAdmin: nueva });
+    claveMaestraAdmin = nueva;
+    $("#input-clave-maestra").value = "";
+    showToast("Clave maestra actualizada ✅");
+  } catch (e) {
+    console.error(e);
+    errEl.textContent = "No se pudo guardar. Revisá tu conexión.";
+    errEl.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Guardar";
   }
 }
 
@@ -2051,6 +2132,7 @@ async function handleSetupConnect() {
       colaboradores = Array.isArray(data.colaboradores) ? data.colaboradores : [];
       admins = Array.isArray(data.admins) ? data.admins : [];
       pins = data.pins && typeof data.pins === "object" ? data.pins : {};
+      claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
       statusEl.textContent = "";
       await finalizeSetup(config);
     } else {
@@ -2092,7 +2174,12 @@ async function handleSetupGuardar() {
     colaboradores = colabNames;
     admins = [ownerName]; // único dueño — siempre admin, no hace falta elegir
     pins = {};
-    await fbSdk.setDoc(socioDocRef, { socios, colaboradores, admins, pins });
+    // Clave compartida para que los admins creen su PIN la primera vez
+    // (ver openPinModal/confirmPinModal) — se puede cambiar después desde
+    // Ajustes sin afectar los PIN ya creados. Importa sobre todo si más
+    // adelante se suma otro admin además del dueño original.
+    claveMaestraAdmin = "llavez";
+    await fbSdk.setDoc(socioDocRef, { socios, colaboradores, admins, pins, claveMaestraAdmin });
     await finalizeSetup(pendingFirebaseConfig);
   } catch (e) {
     console.error(e);
@@ -2145,9 +2232,12 @@ function wireEvents() {
   $("#btn-cambiar-usuario").addEventListener("click", cambiarUsuario);
   $("#btn-agregar-colaborador-ajustes").addEventListener("click", agregarColaboradorDesdeAjustes);
   $("#ajustes-colaboradores-list").addEventListener("click", (e) => {
-    const btn = e.target.closest(".colaborador-remove-btn");
-    if (btn) quitarColaborador(btn.dataset.nombre);
+    const removeBtn = e.target.closest(".colaborador-remove-btn");
+    if (removeBtn) { quitarColaborador(removeBtn.dataset.nombre); return; }
+    const adminBtn = e.target.closest(".admin-toggle-btn");
+    if (adminBtn) toggleAdminColaborador(adminBtn.dataset.nombre);
   });
+  $("#btn-guardar-clave-maestra").addEventListener("click", guardarClaveMaestra);
   $("#btn-pin-cancel").addEventListener("click", closePinModal);
   $("#btn-pin-confirm").addEventListener("click", confirmPinModal);
   $("#modal-pin").addEventListener("click", (e) => {

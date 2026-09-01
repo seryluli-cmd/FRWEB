@@ -290,6 +290,17 @@
         </div>
       </div>
 
+      <div class="card hidden" id="ajustes-clave-maestra-card">
+        <h2>Clave maestra de administradores</h2>
+        <p class="muted small">La usan los admins para crear su PIN la primera vez en un celular nuevo. Cambiarla acá no afecta los PIN que ya tiene cada uno.</p>
+        <div class="field">
+          <label for="input-clave-maestra">Nueva clave maestra</label>
+          <input type="text" id="input-clave-maestra" maxlength="30" placeholder="Ej: llavez">
+        </div>
+        <p id="clave-maestra-error" class="error-text hidden"></p>
+        <button type="button" id="btn-guardar-clave-maestra" class="btn-secondary">Guardar</button>
+      </div>
+
       <div class="card">
         <h2>Estado de conexión</h2>
         <p id="ajustes-conn-status" class="muted small"></p>
@@ -582,6 +593,12 @@
       <div class="modal-handle"></div>
       <h2 id="pin-modal-title">Ingresá tu PIN</h2>
       <p id="pin-modal-sub" class="muted small" style="margin-top:-10px; margin-bottom:16px;"></p>
+
+      <div class="field hidden" id="pin-field-clave-maestra">
+        <label for="pin-input-clave-maestra">Clave maestra de administradores</label>
+        <input type="password" id="pin-input-clave-maestra" placeholder="Te la pasan los otros admins">
+        <p class="muted small">Solo hace falta esta vez, para crear tu PIN como admin. Después usás tu PIN de siempre.</p>
+      </div>
 
       <div class="field">
         <label for="pin-input-1" id="pin-label-1">PIN</label>
