@@ -2142,6 +2142,48 @@ function actualizarChipsTurnoPorFecha() {
 // renderFacturado). Con "preset" ({fecha, turno}): alta de un cierre para
 // una caja marcada como faltante — ver botón "Cargar" en
 // renderCierreFaltante, cualquiera puede usarlo en cualquier momento.
+// Cálculo cruzado Total/Efectivo/Digital: se pueden completar 2
+// cualquiera de los 3 campos y el que falta se calcula solo (mismo
+// patrón que GESTIONEGOCIOS). facturadoUltimosEditados guarda, en
+// orden, los últimos 2 campos que se tipearon A MANO (no los que ya se
+// autocompletaron) — con esos 2 se sabe cuál es el tercero a calcular.
+// Se reinicia cada vez que se abre el modal (ver openModalFacturado()).
+let facturadoUltimosEditados = [];
+
+const FACTURADO_CAMPO_ID = {
+  total: "input-importe-fact",
+  efectivo: "input-efectivo-fact",
+  digital: "input-digital-fact",
+};
+
+function registrarEdicionManualFacturado(campo) {
+  facturadoUltimosEditados = facturadoUltimosEditados.filter(c => c !== campo);
+  facturadoUltimosEditados.push(campo);
+  if (facturadoUltimosEditados.length > 2) facturadoUltimosEditados.shift();
+  calcularCampoFaltanteFacturado();
+}
+
+function calcularCampoFaltanteFacturado() {
+  if (facturadoUltimosEditados.length < 2) return; // todavía no hay 2 campos como para deducir el tercero
+  const valores = {
+    total: parseFloat($("#input-importe-fact").value),
+    efectivo: parseFloat($("#input-efectivo-fact").value),
+    digital: parseFloat($("#input-digital-fact").value),
+  };
+  const [a, b] = facturadoUltimosEditados;
+  if (!Number.isFinite(valores[a]) || !Number.isFinite(valores[b])) return;
+
+  const faltante = ["total", "efectivo", "digital"].find(c => c !== a && c !== b);
+  const resultado = faltante === "total" ? valores.efectivo + valores.digital
+    : faltante === "efectivo" ? valores.total - valores.digital
+    : valores.total - valores.efectivo;
+
+  // Se muestra el resultado tal cual, incluso si da negativo (ej.
+  // pusiste más Efectivo que Total) — así se nota el error a simple
+  // vista en vez de desaparecer solo; saveCierre() lo bloquea al guardar.
+  $("#" + FACTURADO_CAMPO_ID[faltante]).value = Math.round(resultado * 100) / 100;
+}
+
 function openModalFacturado(cierre, preset) {
   editingCierreId = cierre ? cierre.id : null;
   // Mismo criterio que en Nuevo gasto (ver openModal): un cierre nuevo
@@ -2151,6 +2193,12 @@ function openModalFacturado(cierre, preset) {
   selectedTurno = cierre ? (cierre.turno || null) : (preset ? preset.turno : turnoActual());
 
   $("#input-importe-fact").value = cierre ? cierre.importe : "";
+  // Cierres cargados ANTES de que existiera el desglose Efectivo/Digital
+  // no tienen esos campos guardados — quedan en blanco para que se
+  // completen de nuevo (no se puede inventar cómo se repartía antes).
+  $("#input-efectivo-fact").value = cierre && cierre.efectivo != null ? cierre.efectivo : "";
+  $("#input-digital-fact").value = cierre && cierre.digital != null ? cierre.digital : "";
+  facturadoUltimosEditados = [];
   if (cierre) {
     $("#input-fecha-fact").value = fechaLocalISO(fechaDeRegistro(cierre));
   } else if (preset) {
@@ -2176,11 +2224,26 @@ function closeModalFacturado() {
 
 async function saveCierre() {
   const importe = parseFloat($("#input-importe-fact").value);
+  const efectivo = parseFloat($("#input-efectivo-fact").value);
+  const digital = parseFloat($("#input-digital-fact").value);
   const fechaStr = $("#input-fecha-fact").value;
   const errEl = $("#modal-fact-error");
 
   if (!importe || importe <= 0) {
     errEl.textContent = "Ingresá un importe válido.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  if (!Number.isFinite(efectivo) || !Number.isFinite(digital) || efectivo < 0 || digital < 0) {
+    errEl.textContent = "Completá Efectivo y Digital (el que falta se calcula solo con el otro y el Total).";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  // Por las dudas se hayan tipeado los 3 campos a mano sin dejar que se
+  // autocompletara ninguno: se valida que sumen el total antes de
+  // guardar, en vez de confiar ciegamente en el cálculo cruzado.
+  if (Math.abs(efectivo + digital - importe) > 0.01) {
+    errEl.textContent = "Efectivo + Digital no coincide con el Total. Revisá los montos.";
     errEl.classList.remove("hidden");
     return;
   }
@@ -2203,6 +2266,8 @@ async function saveCierre() {
   try {
     const data = {
       importe,
+      efectivo,
+      digital,
       turno: selectedTurno,
       registradoPor: selectedRegistrador,
       negocio: negocioActual,
@@ -2489,6 +2554,9 @@ function wireEvents() {
   $("#modal-add-facturado").addEventListener("click", (e) => {
     if (e.target.id === "modal-add-facturado") closeModalFacturado();
   });
+  $("#input-importe-fact").addEventListener("input", () => registrarEdicionManualFacturado("total"));
+  $("#input-efectivo-fact").addEventListener("input", () => registrarEdicionManualFacturado("efectivo"));
+  $("#input-digital-fact").addEventListener("input", () => registrarEdicionManualFacturado("digital"));
 
   $("#btn-ideas-main").addEventListener("click", () => {
     seccionActual = "ideas";
