@@ -1352,6 +1352,28 @@ function renderResumen() {
   $("#resumen-total-gastos").textContent = money(totalGastos);
   $("#resumen-cant-gastos").textContent = gastosMes.length === 1 ? "1 gasto cargado" : `${gastosMes.length} gastos cargados`;
 
+  // Mismo desglose Efectivo/Digital que Facturado, pero para Gastos —
+  // usa el campo "formaPago" de cada gasto (ver openModal/saveGasto).
+  // Gastos sin ese campo (cargados antes de que existiera) cuentan como
+  // Efectivo, igual que en la lista de Gastos (ver formaPagoLabel()).
+  let totalGastosEfectivo = 0, totalGastosDigital = 0;
+  gastosMes.forEach(g => {
+    const importe = Number(g.importe) || 0;
+    if (g.formaPago === "digital") {
+      totalGastosDigital += importe;
+    } else if (g.formaPago === "mixto") {
+      totalGastosEfectivo += Number(g.montoEfectivo) || 0;
+      totalGastosDigital += Number(g.montoDigital) || 0;
+    } else {
+      totalGastosEfectivo += importe;
+    }
+  });
+  $("#resumen-gastos-efectivo").textContent = money(totalGastosEfectivo);
+  $("#resumen-gastos-digital").textContent = money(totalGastosDigital);
+  const maxGastosEfectDigital = Math.max(1, totalGastosEfectivo, totalGastosDigital);
+  $("#resumen-gastos-bar-efectivo").style.width = Math.round((totalGastosEfectivo / maxGastosEfectDigital) * 100) + "%";
+  $("#resumen-gastos-bar-digital").style.width = Math.round((totalGastosDigital / maxGastosEfectDigital) * 100) + "%";
+
   // Agrupa los cierres del mes por día calendario, y dentro de cada día
   // por turno — para ver de un vistazo cuánto se trabajó cada día y cómo
   // se repartió entre Mañana/Tarde/Noche.
