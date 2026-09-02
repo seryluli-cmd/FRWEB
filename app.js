@@ -1336,9 +1336,19 @@ function renderResumen() {
 
   const totalGastos = gastosMes.reduce((sum, g) => sum + (Number(g.importe) || 0), 0);
   const totalFact = factMes.reduce((sum, f) => sum + (Number(f.importe) || 0), 0);
+  // Cierres cargados ANTES del desglose Efectivo/Digital no tienen esos
+  // campos — no suman acá (por eso Efectivo+Digital puede no coincidir
+  // exactamente con el Total Facturado en meses con cierres viejos).
+  const totalEfectivo = factMes.reduce((sum, f) => sum + (Number(f.efectivo) || 0), 0);
+  const totalDigital = factMes.reduce((sum, f) => sum + (Number(f.digital) || 0), 0);
 
   $("#resumen-total-facturado").textContent = money(totalFact);
   $("#resumen-cant-facturado").textContent = factMes.length === 1 ? "1 cierre cargado" : `${factMes.length} cierres cargados`;
+  $("#resumen-total-efectivo").textContent = money(totalEfectivo);
+  $("#resumen-total-digital").textContent = money(totalDigital);
+  const maxEfectDigital = Math.max(1, totalEfectivo, totalDigital);
+  $("#resumen-bar-efectivo").style.width = Math.round((totalEfectivo / maxEfectDigital) * 100) + "%";
+  $("#resumen-bar-digital").style.width = Math.round((totalDigital / maxEfectDigital) * 100) + "%";
   $("#resumen-total-gastos").textContent = money(totalGastos);
   $("#resumen-cant-gastos").textContent = gastosMes.length === 1 ? "1 gasto cargado" : `${gastosMes.length} gastos cargados`;
 
