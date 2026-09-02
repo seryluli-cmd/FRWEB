@@ -829,13 +829,21 @@ function renderGastos() {
 
     const notaHtml = g.nota ? `<div class="meta gasto-nota">📝 ${escapeHtml(g.nota)}</div>` : "";
 
+    // Falta abonar: se tildó porque todavía no se le pagó a quien
+    // trajo la mercadería (ej. te dejan pagar unos días después) — la
+    // fila queda en rojo. Tocar el aviso lo marca como pagado al toque
+    // (guarda directo, sin pasar por el modal de Editar).
+    const metaFaltaAbonar = g.faltaAbonar
+      ? ` · <button type="button" class="meta-falta-abonar" data-id="${g.id}">⚠️ Falta abonar</button>`
+      : "";
+
     const li = document.createElement("li");
-    li.className = "expense-item";
+    li.className = "expense-item" + (g.faltaAbonar ? " falta-abonar" : "");
     li.innerHTML = `
       <div class="avatar" style="background:${payerColorVar(g.pagadoPor)}">${socioInitial(g.pagadoPor)}</div>
       <div class="info">
         <div class="desc">${escapeHtml(g.descripcion || "Sin descripción")}</div>
-        <div class="meta">${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} · ${escapeHtml(g.categoria || "Otros")} · Pagó ${escapeHtml(g.pagadoPor || "?")} · ${formaPagoLabel(g)}</div>
+        <div class="meta">${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} · ${escapeHtml(g.categoria || "Otros")} · Pagó ${escapeHtml(g.pagadoPor || "?")} · ${formaPagoLabel(g)}${metaFaltaAbonar}</div>
         ${notaHtml}
       </div>
       <div class="amount">${money(g.importe)}</div>
@@ -1952,6 +1960,7 @@ function openModal(gasto) {
   $("#input-importe").value = gasto ? gasto.importe : "";
   $("#input-descripcion").value = gasto ? (gasto.descripcion || "") : "";
   $("#input-categoria").value = gasto ? (gasto.categoria || "Kiosko") : "Kiosko";
+  $("#input-falta-abonar").checked = gasto ? !!gasto.faltaAbonar : false;
   $("#input-nota").value = gasto ? (gasto.nota || "") : "";
 
   // Gastos cargados antes de que existiera "forma de pago" no tienen el
@@ -2059,6 +2068,7 @@ async function saveGasto() {
       nota,
       pagadoPor: selectedPagador,
       negocio: negocioActual,
+      faltaAbonar: $("#input-falta-abonar").checked,
       fecha: fechaStr ? new Date(fechaStr + "T12:00:00") : fbSdk.serverTimestamp(),
       formaPago: selectedFormaPago
     };
@@ -2122,6 +2132,18 @@ async function deleteGasto(id) {
   } catch (e) {
     console.error(e);
     showToast("No se pudo borrar. Revisá tu conexión.");
+  }
+}
+
+// Tocar el aviso "⚠️ Falta abonar" en la lista lo marca como pagado
+// directo, sin pasar por el modal de Editar.
+async function marcarAbonado(id) {
+  try {
+    await fbSdk.updateDoc(fbSdk.doc(db, "gastos", id), { faltaAbonar: false });
+    showToast("Gasto marcado como pagado ✅");
+  } catch (e) {
+    console.error(e);
+    showToast("No se pudo actualizar. Revisá tu conexión.");
   }
 }
 
@@ -2679,7 +2701,9 @@ function wireEvents() {
       return;
     }
     const delBtn = e.target.closest(".gasto-delete-btn");
-    if (delBtn) deleteGasto(delBtn.dataset.id);
+    if (delBtn) { deleteGasto(delBtn.dataset.id); return; }
+    const abonarBtn = e.target.closest(".meta-falta-abonar");
+    if (abonarBtn) marcarAbonado(abonarBtn.dataset.id);
   });
 
   // Editar y borrar de un cierre ya cargado (delegado, admin)
