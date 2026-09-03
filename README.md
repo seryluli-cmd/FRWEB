@@ -88,8 +88,13 @@ directo a la sección que necesita.
   (`renderSeccionCards()`), con su propia colección de Firestore — no
   comparte datos con `ideas`. Ver `renderReportes()` / `reporteCard()` /
   `listenReportes()` en app.js.
-- **Storage**: fotos en `recibos/{negocio}/{timestamp}_{random}.jpg`, se
-  borran solas a los 4 meses (el gasto nunca se borra, solo la foto).
+- **Storage**: fotos de gastos en `recibos/{negocio}/{timestamp}_{random}.jpg`,
+  se borran solas a los 4 meses (el gasto nunca se borra, solo la foto). Las
+  fotos de Cierre de Turno van en `cierres/{negocio}/{...}.jpg` (mismo
+  patrón — ver `saveCierre()`) pero **no** entran en la limpieza automática
+  de 4 meses (`limpiarFotosVencidas()` solo mira `gastos`) ni en la pantalla
+  "Fotos guardadas" (solo lista fotos de gastos) — quedan en Storage
+  indefinidamente salvo que se borre el cierre entero.
 
 ## Identidad y permisos (PIN + admin)
 
