@@ -911,8 +911,6 @@ function renderGastos() {
          <button type="button" class="icon-btn danger gasto-delete-btn" data-id="${g.id}" aria-label="Borrar gasto">🗑️</button>`
       : "";
 
-    const notaHtml = g.nota ? `<div class="meta gasto-nota">📝 ${escapeHtml(g.nota)}</div>` : "";
-
     // Falta abonar: se tildó porque todavía no se le pagó a quien
     // trajo la mercadería (ej. te dejan pagar unos días después) — la
     // fila queda en rojo. Tocar el aviso lo marca como pagado al toque
@@ -921,18 +919,36 @@ function renderGastos() {
       ? ` · <button type="button" class="meta-falta-abonar" data-id="${g.id}">⚠️ Falta abonar</button>`
       : "";
 
+    // Notas largas hacían la fila del gasto muy alta en el celular — se
+    // recortan a las primeras 2 palabras y el resto se ve tocando "Ver
+    // detalle completo" (usa data-id, no el texto de la nota, para no
+    // tener que escaparla dentro de un atributo HTML — ver verDetalleGasto()).
+    const notaPalabras = g.nota ? g.nota.trim().split(/\s+/) : [];
+    const notaLarga = notaPalabras.length > 2;
+    const notaCorta = notaPalabras.slice(0, 2).join(" ");
+    const notaHtml = g.nota
+      ? `<div class="meta gasto-nota">📝 ${escapeHtml(notaCorta)}${notaLarga ? `… <button type="button" class="ver-detalle-btn" data-id="${g.id}">Ver detalle completo</button>` : ""}</div>`
+      : "";
+
     const li = document.createElement("li");
     li.className = "expense-item" + (g.faltaAbonar ? " falta-abonar" : "");
+    // Foto/editar/borrar van en su propia fila abajo (ver .expense-item-actions
+    // en styles.css) — así el texto de arriba usa todo el ancho disponible
+    // en vez de competir con los íconos cuando la descripción/nota es larga.
+    const acciones = (fotoBtn || adminBtns)
+      ? `<div class="expense-item-actions">${fotoBtn}${adminBtns}</div>`
+      : "";
     li.innerHTML = `
-      <div class="avatar" style="background:${payerColorVar(g.pagadoPor)}">${socioInitial(g.pagadoPor)}</div>
-      <div class="info">
-        <div class="desc">${escapeHtml(g.descripcion || "Sin descripción")}</div>
-        <div class="meta">${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} · ${escapeHtml(g.categoria || "Otros")} · Pagó ${escapeHtml(g.pagadoPor || "?")} · ${formaPagoLabel(g)}${metaFaltaAbonar}</div>
-        ${notaHtml}
+      <div class="expense-item-top">
+        <div class="avatar" style="background:${payerColorVar(g.pagadoPor)}">${socioInitial(g.pagadoPor)}</div>
+        <div class="info">
+          <div class="desc">${escapeHtml(g.descripcion || "Sin descripción")}</div>
+          <div class="meta">${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} · ${escapeHtml(g.categoria || "Otros")} · Pagó ${escapeHtml(g.pagadoPor || "?")} · ${formaPagoLabel(g)}${metaFaltaAbonar}</div>
+          ${notaHtml}
+        </div>
+        <div class="amount">${money(g.importe)}</div>
       </div>
-      <div class="amount">${money(g.importe)}</div>
-      ${fotoBtn}
-      ${adminBtns}
+      ${acciones}
     `;
     list.appendChild(li);
   });
@@ -946,6 +962,50 @@ function formaPagoLabel(g) {
   if (g.formaPago === "digital") return "💳 Digital";
   if (g.formaPago === "mixto") return `🔀 ${money(g.montoDigital)} digital · ${money(g.montoEfectivo)} efectivo`;
   return "💵 Efectivo";
+}
+
+// Detalle completo de un gasto (ver botón "Ver detalle completo" en
+// renderGastos, para notas largas) — un cartel simple en vez de otro
+// modal, ya que es solo para leer, no para editar.
+function verDetalleGasto(id) {
+  const g = gastos.find(x => x.id === id);
+  if (!g) return;
+  const fecha = fechaDeRegistro(g).toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+
+  // Todo por textContent (no innerHTML) — no hace falta escapeHtml, texto
+  // plano nunca se interpreta como HTML.
+  $("#detalle-gasto-avatar").textContent = socioInitial(g.pagadoPor);
+  $("#detalle-gasto-avatar").style.background = payerColorVar(g.pagadoPor);
+  $("#detalle-gasto-monto").textContent = money(g.importe);
+  $("#detalle-gasto-desc").textContent = g.descripcion || "Sin descripción";
+  $("#detalle-gasto-categoria").textContent = g.categoria || "Otros";
+  $("#detalle-gasto-abonar").classList.toggle("hidden", !g.faltaAbonar);
+  $("#detalle-gasto-fecha").textContent = fecha;
+  $("#detalle-gasto-pagador").textContent = g.pagadoPor || "?";
+  $("#detalle-gasto-formapago").textContent = formaPagoLabel(g);
+
+  const notaWrap = $("#detalle-gasto-nota-wrap");
+  if (g.nota) {
+    $("#detalle-gasto-nota-texto").textContent = g.nota;
+    notaWrap.classList.remove("hidden");
+  } else {
+    notaWrap.classList.add("hidden");
+  }
+
+  const fotoLink = $("#detalle-gasto-foto-link");
+  if (g.fotoUrl) {
+    fotoLink.href = g.fotoUrl;
+    $("#detalle-gasto-foto-img").src = g.fotoUrl;
+    fotoLink.classList.remove("hidden");
+  } else {
+    fotoLink.classList.add("hidden");
+  }
+
+  $("#modal-detalle-gasto").classList.add("active");
+}
+
+function closeModalDetalleGasto() {
+  $("#modal-detalle-gasto").classList.remove("active");
 }
 
 // Todo texto que viene de Firestore (descripción, nombres) pasa por acá antes
@@ -981,15 +1041,20 @@ function renderCierreItem(f) {
 
   const li = document.createElement("li");
   li.className = "expense-item";
+  // Acá los íconos se quedan en la misma fila que el texto (a diferencia
+  // de Gastos) — el texto de un cierre es corto y no necesita el ancho
+  // extra, así que no hacía falta separarlos en .expense-item-actions.
   li.innerHTML = `
-    <div class="avatar" style="background:${payerColorVar(f.registradoPor)}">${socioInitial(f.registradoPor)}</div>
-    <div class="info">
-      <div class="desc">${turnoLabel ? escapeHtml(turnoLabel) + " — " : ""}${fecha.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "short" })}</div>
-      <div class="meta">Cargado por ${escapeHtml(f.registradoPor || "?")}${horaCarga ? " a las " + horaCarga : ""}</div>
+    <div class="expense-item-top">
+      <div class="avatar" style="background:${payerColorVar(f.registradoPor)}">${socioInitial(f.registradoPor)}</div>
+      <div class="info">
+        <div class="desc">${turnoLabel ? escapeHtml(turnoLabel) + " — " : ""}${fecha.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "short" })}</div>
+        <div class="meta">Cargado por ${escapeHtml(f.registradoPor || "?")}${horaCarga ? " a las " + horaCarga : ""}</div>
+      </div>
+      <div class="amount">${money(f.importe)}</div>
+      ${fotoBtn}
+      ${adminBtns}
     </div>
-    <div class="amount">${money(f.importe)}</div>
-    ${fotoBtn}
-    ${adminBtns}
   `;
   return li;
 }
@@ -1003,11 +1068,13 @@ function renderCierreFaltante(fecha, turno) {
   const li = document.createElement("li");
   li.className = "expense-item expense-item-faltante";
   li.innerHTML = `
-    <div class="info">
-      <div class="desc falta-desc">⚠️ CAJA NO CARGADA</div>
-      <div class="meta">${escapeHtml(turnoLabelParaFecha(fecha, turno))} — ${fecha.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "short" })}</div>
+    <div class="expense-item-top">
+      <div class="info">
+        <div class="desc falta-desc">⚠️ CAJA NO CARGADA</div>
+        <div class="meta">${escapeHtml(turnoLabelParaFecha(fecha, turno))} — ${fecha.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "short" })}</div>
+      </div>
+      <button type="button" class="btn-secondary btn-cargar-faltante" data-fecha="${fechaLocalISO(fecha)}" data-turno="${turno}">Cargar</button>
     </div>
-    <button type="button" class="btn-secondary btn-cargar-faltante" data-fecha="${fechaLocalISO(fecha)}" data-turno="${turno}">Cargar</button>
   `;
   return li;
 }
@@ -2910,7 +2977,13 @@ function wireEvents() {
     const delBtn = e.target.closest(".gasto-delete-btn");
     if (delBtn) { deleteGasto(delBtn.dataset.id); return; }
     const abonarBtn = e.target.closest(".meta-falta-abonar");
-    if (abonarBtn) marcarAbonado(abonarBtn.dataset.id);
+    if (abonarBtn) { marcarAbonado(abonarBtn.dataset.id); return; }
+    const verDetalleBtn = e.target.closest(".ver-detalle-btn");
+    if (verDetalleBtn) verDetalleGasto(verDetalleBtn.dataset.id);
+  });
+  $("#btn-cerrar-detalle-gasto").addEventListener("click", closeModalDetalleGasto);
+  $("#modal-detalle-gasto").addEventListener("click", (e) => {
+    if (e.target.id === "modal-detalle-gasto") closeModalDetalleGasto();
   });
 
   // Editar y borrar de un cierre ya cargado (delegado, admin)
