@@ -249,13 +249,14 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin: 0 0 4px;
+  margin: 0 0 14px;
 }
 .seccion-titulo-row .logo-badge { margin: 0; }
 
 .frase-manuscrita {
   position: relative;
   display: inline-block;
+  margin-top: 0;
   font-family: "Caveat", cursive;
   font-size: 24px;
   font-weight: 600;

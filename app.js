@@ -348,13 +348,27 @@ function socioColorVar(index) {
   return `var(${SERIES_VARS[index % SERIES_VARS.length]})`;
 }
 
+// Color de identidad estable por nombre: un hash simple del string a un
+// matiz HSL. Así cada colaborador tiene siempre el mismo color (no cambia
+// si se reordena el array), sin depender de una paleta fija de 3 colores.
+function colorDesdeNombre(name) {
+  let hash = 0;
+  const str = name || "";
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  }
+  return `hsl(${hash % 360}, 55%, 45%)`;
+}
+
 // Color de identidad para cualquier "pagador": el dueño tiene su color
-// categórico propio; cualquier otra persona (colaboradores) usa un color
-// neutro, porque no participan del reparto y no deben leerse como una
-// "serie" propia en el balance.
+// categórico propio (el de siempre); cada colaborador tiene su propio
+// color estable derivado de su nombre, para distinguirlos a simple vista
+// igual que al dueño.
 function payerColorVar(name) {
   const idx = socios.indexOf(name);
-  return idx !== -1 ? socioColorVar(idx) : NEUTRAL_VAR;
+  if (idx !== -1) return socioColorVar(idx);
+  if (colaboradores.indexOf(name) !== -1) return colorDesdeNombre(name);
+  return NEUTRAL_VAR;
 }
 
 function socioInitial(name) {
@@ -531,7 +545,7 @@ async function cargarHistorialLogins() {
     filas.forEach(f => {
       const row = document.createElement("div");
       row.className = "ajustes-socio-row";
-      row.innerHTML = `<span class="socio-dot" style="background:${NEUTRAL_VAR}"></span> ${escapeHtml(f.nombre)}
+      row.innerHTML = `<span class="socio-dot" style="background:${payerColorVar(f.nombre)}"></span> ${escapeHtml(f.nombre)}
         <span class="muted small" style="margin-left:auto;">${f.veces} ${f.veces === 1 ? "vez" : "veces"}</span>`;
       wrap.appendChild(row);
     });
@@ -1932,12 +1946,12 @@ function renderColaboradoresTotales() {
     card.innerHTML = `
       <div class="socio-total-row">
         <div class="socio-total-name">
-          <span class="socio-dot" style="background:${NEUTRAL_VAR}"></span>
+          <span class="socio-dot" style="background:${payerColorVar(nombre)}"></span>
           ${escapeHtml(nombre)}
         </div>
         <div class="socio-total-amount">${money(porColaborador[idx])}</div>
       </div>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${NEUTRAL_VAR}"></div></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${payerColorVar(nombre)}"></div></div>
     `;
     wrap.appendChild(card);
   });
@@ -2039,7 +2053,7 @@ function renderAjustesSocios() {
       const removeBtn = esAdmin
         ? `<button type="button" class="icon-btn danger colaborador-remove-btn" data-nombre="${escapeHtml(nombre)}" aria-label="Quitar empleado">🗑️</button>`
         : "";
-      row.innerHTML = `<span class="socio-dot" style="background:${NEUTRAL_VAR}"></span> ${escapeHtml(nombre)} ${badge}<span style="margin-left:auto;display:flex;gap:4px;">${adminToggleBtn}${removeBtn}</span>`;
+      row.innerHTML = `<span class="socio-dot" style="background:${payerColorVar(nombre)}"></span> ${escapeHtml(nombre)} ${badge}<span style="margin-left:auto;display:flex;gap:4px;">${adminToggleBtn}${removeBtn}</span>`;
       colabWrap.appendChild(row);
     });
   } else {
