@@ -72,6 +72,11 @@ const NEGOCIOS = [
   { id: "gestionfr", nombre: "Gestion FR", emoji: "⌨️", color: "var(--series-1)" }
 ];
 
+// Cifra fija que pidió Sergio (el inversor) para "Inversión Recuperada" —
+// el total a recuperar del negocio. No hay pantalla para editarla porque
+// es un dato del acuerdo, no algo que cambie desde la operación diaria.
+const INVERSION_META = 55000000;
+
 let fbApp = null, auth = null, db = null, storage = null;
 let selectedFotoBlob = null; // foto comprimida, lista para subir (modal Nuevo gasto)
 let selectedFotoFacturadoBlob = null; // ídem, para el modal de Cierre de Turno
@@ -89,6 +94,7 @@ let gastos = [];           // TODOS los gastos — [{id, importe, descripcion, c
 let facturaciones = [];    // TODOS los cierres diarios — [{id, importe, registradoPor, fecha, negocio}]
 let ideas = [];            // Ideas de mejora — [{id, texto, estado, propuestoPor, creadoEn}]
 let reportes = [];         // Reportes de mantenimiento — [{id, texto, estado, propuestoPor, votos, creadoEn}]
+let inversiones = [];      // Historial de "Inversión Recuperada" — [{id, monto, registradoPor, creadoEn}]. `monto` es el TOTAL acumulado a esa fecha, no un incremento.
 let negocioActual = null;  // "gestionfr" (siempre — acá hay un solo negocio)
 let seccionActual = null;  // "gastos" | "facturado" | "resumen"
 let selectedPagador = null;
@@ -359,6 +365,21 @@ function allPagadores() {
   return socios.concat(colaboradores);
 }
 
+// "Inversión Recuperada": pantalla de uso exclusivo para el inversor.
+// Solo Sergio y Pola pueden ENTRAR (puedeVerInversion controla si aparece
+// la tarjeta en screen-seccion); de esos dos, solo Sergio puede CARGAR
+// actualizaciones y borrar (puedeCargarInversion controla el botón + y el
+// 🗑️ del historial) — Pola solo mira. Comparación directa por nombre,
+// mismo patrón que "esSergio" en renderAjustesSocios (ver historial de
+// logeos) — no depende de esAdmin porque un colaborador podría llegar a
+// ser admin (ver admin-toggle-btn) sin que eso deba darle acceso acá.
+function puedeVerInversion() {
+  return usuarioActual === "Sergio" || usuarioActual === "Pola";
+}
+function puedeCargarInversion() {
+  return usuarioActual === "Sergio";
+}
+
 // ---------- Firebase init ----------
 async function initFirebase(config) {
   const sdk = await loadFirebaseSdk();
@@ -436,6 +457,7 @@ function bootApp() {
   listenFacturacion();
   listenIdeas();
   listenReportes();
+  listenInversion();
   listenSocios();
   listenConnectivity();
   setDefaultFecha();
@@ -696,6 +718,7 @@ function selectNegocio(id) {
 function renderSeccionCards(biz) {
 
   const SECCIONES = [
+    { id: "inversion", emoji: "🏦", nombre: "Inversión Recuperada", sub: "Seguimiento del monto recuperado por Sergio", soloInversion: true },
     { id: "gastos", emoji: "🧾", nombre: "Gastos", sub: "Cargar gastos y ver el balance entre socios" },
     { id: "facturado", emoji: "💰", nombre: "Cierre de Turno", sub: "Anotar efectivo y Digital" },
     { id: "resumen", emoji: "📊", nombre: "Resumen mensual", sub: "Ver los totales de cada mes", soloAdmin: true },
@@ -705,7 +728,7 @@ function renderSeccionCards(biz) {
 
   const wrap = $("#seccion-cards");
   wrap.innerHTML = "";
-  SECCIONES.filter(s => !s.soloAdmin || esAdmin).forEach(s => {
+  SECCIONES.filter(s => (!s.soloAdmin || esAdmin) && (!s.soloInversion || puedeVerInversion())).forEach(s => {
     const card = document.createElement("div");
     card.className = "negocio-card";
     card.style.setProperty("--biz-color", biz.color);
@@ -743,6 +766,9 @@ function selectSeccion(id) {
   } else if (id === "mantenimiento") {
     renderReportes();
     showScreen("screen-mantenimiento");
+  } else if (id === "inversion") {
+    renderInversion();
+    showScreen("screen-inversion");
   }
 }
 
@@ -837,6 +863,23 @@ function listenReportes() {
   fbSdk.onSnapshot(q, (snapshot) => {
     reportes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderReportes();
+    setSyncOffline(false);
+  }, (err) => {
+    console.error(err);
+    setSyncOffline(true);
+  });
+}
+
+// Misma mecánica que Ideas (ver listenIdeas), colección aparte "inversion".
+// Se sincroniza para cualquiera igual que el resto de las colecciones (ver
+// README: no hay reglas de Firestore reales) — lo que restringe el acceso
+// es solo que la tarjeta/pantalla no aparecen salvo para Sergio y Pola
+// (ver puedeVerInversion).
+function listenInversion() {
+  const q = fbSdk.query(fbSdk.collection(db, "inversion"), fbSdk.orderBy("creadoEn", "desc"));
+  fbSdk.onSnapshot(q, (snapshot) => {
+    inversiones = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderInversion();
     setSyncOffline(false);
   }, (err) => {
     console.error(err);
@@ -1465,6 +1508,109 @@ async function saveReporte() {
   }
 }
 
+// ---------- Render: Inversión Recuperada ----------
+// Cada doc de "inversion" guarda el TOTAL acumulado a esa fecha (no un
+// incremento) — por eso "lo recuperado hasta ahora" es simplemente el
+// monto del último doc (los más nuevos van primero, ver listenInversion).
+function inversionActual() {
+  return inversiones.length ? (Number(inversiones[0].monto) || 0) : 0;
+}
+
+// Pedido puntual de Sergio para esta pantalla: mostrar "Millones" al lado
+// de cada monto (ej. "$27.000.000 Millones") — es solo un sufijo de texto
+// sobre lo que ya arma money(), no una conversión de unidades.
+function moneyMillones(n) {
+  return money(n) + " Millones";
+}
+
+function renderInversion() {
+  const actual = inversionActual();
+  $("#inversion-actual").textContent = moneyMillones(actual);
+  $("#inversion-meta-sub").textContent = `de ${moneyMillones(INVERSION_META)} a recuperar`;
+  const pct = INVERSION_META ? Math.min(100, Math.round((actual / INVERSION_META) * 100)) : 0;
+  $("#inversion-bar").style.width = pct + "%";
+
+  $("#fab-add-inversion").classList.toggle("hidden", !puedeCargarInversion());
+
+  const list = $("#inversion-list");
+  const empty = $("#inversion-empty");
+  list.innerHTML = "";
+  empty.classList.toggle("hidden", inversiones.length > 0);
+
+  inversiones.forEach(inv => {
+    const fecha = fechaDeRegistro(inv);
+    const deleteBtn = puedeCargarInversion()
+      ? `<button type="button" class="icon-btn danger inversion-delete-btn" data-id="${inv.id}" aria-label="Borrar esta actualización">🗑️</button>`
+      : "";
+    const li = document.createElement("li");
+    li.className = "expense-item";
+    li.innerHTML = `
+      <div class="expense-item-top">
+        <div class="avatar" style="background:${payerColorVar(inv.registradoPor)}">${socioInitial(inv.registradoPor)}</div>
+        <div class="info">
+          <div class="desc">${escapeHtml(inv.registradoPor || "?")} recuperó ${moneyMillones(inv.monto)}</div>
+          <div class="meta">${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })} · ${fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</div>
+        </div>
+      </div>
+      ${deleteBtn ? `<div class="expense-item-actions">${deleteBtn}</div>` : ""}
+    `;
+    list.appendChild(li);
+  });
+}
+
+function openModalInversion() {
+  $("#input-monto-inversion").value = "";
+  $("#modal-inversion-error").classList.add("hidden");
+  $("#modal-add-inversion").classList.add("active");
+  setTimeout(() => $("#input-monto-inversion").focus(), 150);
+}
+
+function closeModalInversion() {
+  $("#modal-add-inversion").classList.remove("active");
+}
+
+async function saveInversion() {
+  const monto = parseMoneyInput($("#input-monto-inversion").value);
+  const errEl = $("#modal-inversion-error");
+  if (!Number.isFinite(monto) || monto < 0) {
+    errEl.textContent = "Ingresá un monto válido.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  const btn = $("#btn-save-inversion");
+  btn.disabled = true;
+  btn.textContent = "Guardando…";
+  try {
+    await fbSdk.addDoc(fbSdk.collection(db, "inversion"), {
+      monto,
+      registradoPor: usuarioActual,
+      creadoEn: fbSdk.serverTimestamp()
+    });
+    closeModalInversion();
+    showToast("Actualización guardada ✅");
+  } catch (e) {
+    errEl.textContent = "No se pudo guardar. Revisá tu conexión.";
+    errEl.classList.remove("hidden");
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Guardar";
+  }
+}
+
+// Solo Sergio (puedeCargarInversion) — ver botón 🗑️ en renderInversion().
+async function deleteInversion(id) {
+  if (!confirm("¿Borrar esta actualización del historial?")) return;
+  try {
+    await fbSdk.deleteDoc(fbSdk.doc(db, "inversion", id));
+    showToast("Actualización borrada");
+  } catch (e) {
+    console.error(e);
+    showToast("No se pudo borrar. Revisá tu conexión.");
+  }
+}
+
 // ---------- Render: Resumen mensual ----------
 // Muestra, para el mes elegido (navegable con ‹ ›), el total de Facturado
 // y el total de Gastos por separado — sin restar uno del otro. No borra ni
@@ -1514,6 +1660,15 @@ function renderResumen() {
   $("#resumen-bar-digital").style.width = Math.round((totalDigital / maxEfectDigital) * 100) + "%";
   $("#resumen-total-gastos").textContent = money(totalGastos);
   $("#resumen-cant-gastos").textContent = gastosMes.length === 1 ? "1 gasto cargado" : `${gastosMes.length} gastos cargados`;
+
+  // Rentabilidad = Total Facturado - Gastos del mes. En rojo si da negativo
+  // (se gastó más de lo que entró), en verde si da positivo o cero. money()
+  // siempre recibe un valor positivo — el signo se antepone a mano para que
+  // quede "-$1.234" y no el "$-1.234" que da toLocaleString con negativos.
+  const rentabilidad = totalFact - totalGastos;
+  const rentabilidadEl = $("#resumen-rentabilidad");
+  rentabilidadEl.textContent = (rentabilidad < 0 ? "-" : "") + money(Math.abs(rentabilidad));
+  rentabilidadEl.style.color = rentabilidad < 0 ? "var(--critical)" : "var(--good)";
 
   // Mismo desglose Efectivo/Digital que Facturado, pero para Gastos —
   // usa el campo "formaPago" de cada gasto (ver openModal/saveGasto).
@@ -2789,7 +2944,8 @@ function wireEvents() {
   // (ver formatMoneyInputMientrasTipea) — Gastos (Importe, Mixto) y Cierre
   // de Turno (Total, Efectivo, Digital).
   ["#input-importe", "#input-mixto-efectivo", "#input-mixto-digital",
-   "#input-importe-fact", "#input-efectivo-fact", "#input-digital-fact"].forEach(wireMoneyInput);
+   "#input-importe-fact", "#input-efectivo-fact", "#input-digital-fact",
+   "#input-monto-inversion"].forEach(wireMoneyInput);
   // "change" (al salir del campo), no "input" (cada tecla) — si no, un
   // solo dígito ya dispara el cálculo con el valor a medio tipear (ver
   // calcularCampoMixtoFaltante).
@@ -2908,6 +3064,20 @@ function wireEvents() {
     if (card) toggleReporteEstado(card.dataset.id);
   };
   $("#reportes-pendientes-list").addEventListener("click", handleReporteListClick);
+
+  // Inversión Recuperada — mismo wiring que Ideas/Reportes, pero sin votos
+  // ni toggle de estado: es solo un historial con alta y borrado.
+  $("#btn-back-to-seccion-inversion").addEventListener("click", volverASeccion);
+  $("#fab-add-inversion").addEventListener("click", openModalInversion);
+  $("#btn-cancel-add-inversion").addEventListener("click", closeModalInversion);
+  $("#btn-save-inversion").addEventListener("click", saveInversion);
+  $("#modal-add-inversion").addEventListener("click", (e) => {
+    if (e.target.id === "modal-add-inversion") closeModalInversion();
+  });
+  $("#inversion-list").addEventListener("click", (e) => {
+    const delBtn = e.target.closest(".inversion-delete-btn");
+    if (delBtn) deleteInversion(delBtn.dataset.id);
+  });
   $("#reportes-resueltos-list").addEventListener("click", handleReporteListClick);
 
   $$(".tabbtn").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));

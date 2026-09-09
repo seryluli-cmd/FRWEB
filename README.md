@@ -77,6 +77,16 @@ directo a la sección que necesita.
   es `"pendiente"` o `"concretada"`; `votos` es un array de nombres (🔥,
   toggle libre). Pendientes ordenadas por cantidad de votos. Cualquiera
   crea/vota/tilda; solo el admin borra.
+- **`inversion`** — `{ monto, registradoPor, creadoEn }`. Historial de
+  "Inversión Recuperada": cada doc guarda el monto **total acumulado** que
+  Sergio (el inversor) lleva recuperado del negocio a esa fecha — no un
+  incremento. Lo que se muestra como "recuperado hasta ahora" es el `monto`
+  del doc más reciente (`inversionActual()` en app.js); la meta fija
+  ($55.000.000, `INVERSION_META` en app.js) no se guarda en Firestore. Los
+  montos de esta pantalla se muestran con el sufijo "Millones" (ver
+  renderInversion en app.js) — es solo texto agregado al valor ya
+  formateado por `money()`, no una conversión de unidades.
+  Pantalla exclusiva: ver "Identidad y permisos" abajo.
 - **`reportes`** — misma estructura y mecánica que `ideas` (ver arriba),
   pero para "Reportes de Mantenimiento" 🔨: `{ texto, estado, votos,
   propuestoPor, resueltoPor?, creadoEn }` con `estado` `"pendiente"` o
@@ -111,6 +121,16 @@ admin** (los empleados no las ven en absoluto, ni la tarjeta para entrar):
   (`#facturado-total-mes-wrap`, ocultado en `renderFacturado()` según
   `esAdmin`) — los empleados solo ven el total de "Hoy".
 
+Aparte de `esAdmin`, hay un permiso independiente por **nombre exacto**
+(no depende de ser admin ni socio) para la pantalla **"Inversión
+Recuperada"** — la primera tarjeta de `screen-seccion`, arriba de Gastos:
+solo aparece para `usuarioActual === "Sergio"` o `"Pola"`
+(`puedeVerInversion()` en app.js); del resto no la ve ni sabe que existe.
+Adentro, solo Sergio puede cargar una actualización o borrar una del
+historial (`puedeCargarInversion()`) — Pola solo mira. Mismo patrón que
+usa el "Historial de logeos" en Ajustes (visible solo si
+`usuarioActual === "Sergio"`).
+
 ⚠️ **No es una capa de seguridad real** — cualquier dispositivo con la
 `firebaseConfig` puede leer/escribir todo en Firestore sin pasar por el PIN
 de la app. Sirve para identificar quién usa cada celular, no para proteger
@@ -121,8 +141,10 @@ los datos de alguien mal intencionado con la config.
 ```
 screen-quien-sos (identificarte con PIN)
   └─ screen-seccion (auto-entra directo, un solo negocio — elegir
-       Gastos / Facturado / Resumen mensual / Caja de IDEAS)
-       ├─ screen-app       (tabs: Gastos, Balance*, Ajustes)
+       Inversión Recuperada* / Gastos / Facturado / Resumen mensual /
+       Caja de IDEAS / Reportes de Mantenimiento)
+       ├─ screen-inversion (*solo Sergio y Pola, ver "Identidad y permisos")
+       ├─ screen-app       (tabs: Gastos, Balance**, Ajustes)
        ├─ screen-facturado
        ├─ screen-resumen
        ├─ screen-ideas
@@ -131,7 +153,7 @@ screen-negocio (queda casi sin uso con un solo negocio — solo se ve si
   algún día se agrega un segundo negocio a NEGOCIOS)
 screen-ajustes → screen-fotos (fotos guardadas)
 ```
-\* la pestaña Balance está oculta por default (un solo dueño = balance
+\*\* la pestaña Balance está oculta por default (un solo dueño = balance
 siempre trivial); reaparecería sola si `socios.length` pasa a ser > 1.
 
 ⚠️ Ojo con este punto si se toca la navegación: como `goToNegocioOrHome()`
