@@ -177,6 +177,14 @@ python -m http.server 5178
 
 ## Configurar Firebase
 
+La config de Firebase de este negocio (proyecto `frkioskos`) ya viene
+incluida en el código (`DEFAULT_FIREBASE_CONFIG` en app.js) — por eso al
+abrir la app por primera vez en un celular nuevo no hay que pegar nada,
+`attemptReconnect()` la usa sola y entra directo a "¿Quién sos?". La
+pantalla de pegar `firebaseConfig` (`screen-setup`) sigue existiendo como
+respaldo manual (botón "Configurar de nuevo" si falla la conexión) y para
+el caso de arrancar un negocio distinto desde cero:
+
 1. Crear un proyecto nuevo y gratis en `console.firebase.google.com`
    (nunca reusar un proyecto de Firebase que ya esté en uso por otra app).
 2. Agregar una app "Web" y copiar el objeto `firebaseConfig`.
@@ -185,8 +193,9 @@ python -m http.server 5178
 4. En Firestore → Reglas: `allow read, write: if request.auth != null;`
 5. Activar **Storage** si se van a subir fotos de facturas (requiere plan
    Blaze — tiene cuota gratis amplia).
-6. Al abrir la app por primera vez, pegar el `firebaseConfig` en la
-   pantalla de configuración inicial.
+6. Pegar el `firebaseConfig` nuevo en la pantalla de configuración inicial
+   (o reemplazar `DEFAULT_FIREBASE_CONFIG` en app.js si va a ser el
+   default para todos los dispositivos).
 
 ## Estado del repo
 

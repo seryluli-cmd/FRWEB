@@ -57,6 +57,19 @@ async function loadFirebaseSdk() {
 }
 
 // ---------- Estado ----------
+// Config de Firebase de este negocio (proyecto "frkioskos") — es la misma
+// para todos los dispositivos (vos, Pola, empleados), así que viene
+// incluida de una vez y nadie tiene que pegarla a mano en el primer
+// inicio (ver attemptReconnect). Si algún día hace falta cambiar de
+// proyecto, alcanza con reemplazar este objeto.
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBE5i2QK0HD2bKQ-ctfYycam9QC_McmxNs",
+  authDomain: "frkioskos.firebaseapp.com",
+  projectId: "frkioskos",
+  storageBucket: "frkioskos.firebasestorage.app",
+  messagingSenderId: "493900046824",
+  appId: "1:493900046824:web:c007a2e4577e8e4b06c45d"
+};
 const LS_CONFIG_KEY = "gn_firebaseConfig";
 const LS_SOCIOS_CACHE = "gn_socios_cache";
 const LS_COLAB_CACHE = "gn_colaboradores_cache";
@@ -3208,7 +3221,7 @@ async function attemptReconnect() {
   const cachedSocios = localStorage.getItem(LS_SOCIOS_CACHE);
   const cachedColab = localStorage.getItem(LS_COLAB_CACHE);
 
-  if (!savedConfig) {
+  if (!savedConfig && !DEFAULT_FIREBASE_CONFIG.apiKey) {
     showScreen("screen-setup");
     return;
   }
@@ -3226,8 +3239,9 @@ async function attemptReconnect() {
   showScreen("screen-loading");
 
   try {
-    const config = JSON.parse(savedConfig);
+    const config = savedConfig ? JSON.parse(savedConfig) : DEFAULT_FIREBASE_CONFIG;
     await connectAndBoot(config, socios, colaboradores);
+    if (!savedConfig) localStorage.setItem(LS_CONFIG_KEY, JSON.stringify(config));
   } catch (e) {
     console.error("Error reconectando:", e);
     $("#loading-msg").textContent = e.message && e.message.includes("conectar")
