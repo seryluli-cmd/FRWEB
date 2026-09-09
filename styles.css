@@ -242,7 +242,16 @@ input:focus, select:focus, textarea:focus {
    para las tarjetas), así que no necesita el padding superior pensado
    para acomodarlo como en ¿Quién sos? / Elegir negocio. */
 #screen-seccion .negocio-wrap { padding-top: 24px; }
-#screen-seccion .negocio-wrap h1 { margin-top: 0; }
+#screen-seccion .negocio-wrap h1 { margin: 0; }
+
+.seccion-titulo-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+.seccion-titulo-row .logo-badge { margin: 0; }
 
 .back-link {
   display: inline-block;
