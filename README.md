@@ -38,7 +38,12 @@ directo a la sección que necesita.
   `socios` tiene un único nombre (vos, el dueño) y `admins` siempre lo
   incluye — no hay checkbox de admin en el setup porque no hace falta
   elegir. `colaboradores` (empleados) se puede editar después desde Ajustes.
-- **`gastos`** — `{ importe, descripcion, categoria, pagadoPor, negocio, fecha, creadoEn, fotoUrl?, fotoPath? }`.
+- **`gastos`** — `{ importe, descripcion, categoria, pagadoPor, negocio, fecha, creadoEn, nota?, faltaAbonar?, formaPago?, montoEfectivo?, montoDigital?, fotos? }`.
+  `fotos` es una lista de hasta 5 `{url, path}` (una factura puede tener
+  varias hojas) — único lugar que la lee es `fotosDeGasto(g)`, que también
+  entiende el formato viejo de una sola foto (`fotoUrl`/`fotoPath`, gastos
+  cargados antes de este cambio) sin necesidad de migrarlos: se pasan solos
+  al formato nuevo la próxima vez que se editan y guardan.
   `categoria` es una de: Kiosko, Bebidas, Panchos, Art Limpieza, Servicios,
   Alquiler, Mantenimiento Gral, Sueldos, Otros, Gastos Fijos (opciones fijas
   en el `<select>` de `index.html`, no se guardan en Firestore). Es un gasto
