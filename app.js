@@ -90,6 +90,15 @@ const NEGOCIOS = [
 // es un dato del acuerdo, no algo que cambie desde la operación diaria.
 const INVERSION_META = 55000000;
 
+// Categoría de gasto visible/cargable solo por admin (alquiler, sueldos
+// fijos, etc. que el dueño no quiere que vean los empleados). Es un gasto
+// más de la colección `gastos` — nada de esquema aparte — pero se filtra
+// en los 3 lugares donde un empleado podría verlo (ver CATEGORIA_GASTOS_FIJOS
+// en renderGastos, openModal y exportGastosCSV). En Resumen mensual (ya
+// admin-only) no se filtra: entra en el total y en la rentabilidad como
+// cualquier otro gasto.
+const CATEGORIA_GASTOS_FIJOS = "Gastos Fijos";
+
 let fbApp = null, auth = null, db = null, storage = null;
 let selectedFotoBlob = null; // foto comprimida, lista para subir (modal Nuevo gasto)
 let selectedFotoFacturadoBlob = null; // ídem, para el modal de Cierre de Turno
@@ -955,6 +964,7 @@ function renderGastos() {
   $("#btn-gastos-mes-siguiente").disabled = esMesActual;
 
   const gastosMes = gastosDelNegocio().filter(g => {
+    if (!esAdmin && g.categoria === CATEGORIA_GASTOS_FIJOS) return false;
     const f = fechaDeRegistro(g);
     return f.getMonth() === targetMonth && f.getFullYear() === targetYear;
   });
@@ -2201,6 +2211,7 @@ function downloadCSV(filename, rows) {
 function exportGastosCSV() {
   const rows = [["Fecha", "Categoría", "Descripción", "Importe", "Pagado por", "Forma de pago", "Efectivo", "Digital", "Nota"]];
   gastosDelNegocio()
+    .filter(g => esAdmin || g.categoria !== CATEGORIA_GASTOS_FIJOS)
     .slice()
     .sort((a, b) => fechaDeRegistro(a) - fechaDeRegistro(b))
     .forEach(g => {
@@ -2312,6 +2323,7 @@ function openModal(gasto) {
 
   $("#input-importe").value = gasto ? formatMoneyValue(gasto.importe) : "";
   $("#input-descripcion").value = gasto ? (gasto.descripcion || "") : "";
+  $("#opt-gastos-fijos").hidden = !esAdmin; // "Gastos Fijos" solo elegible por admin
   $("#input-categoria").value = gasto ? (gasto.categoria || "Kiosko") : "Kiosko";
   $("#input-falta-abonar").checked = gasto ? !!gasto.faltaAbonar : false;
   $("#input-nota").value = gasto ? (gasto.nota || "") : "";

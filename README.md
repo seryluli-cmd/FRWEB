@@ -40,8 +40,10 @@ directo a la sección que necesita.
   elegir. `colaboradores` (empleados) se puede editar después desde Ajustes.
 - **`gastos`** — `{ importe, descripcion, categoria, pagadoPor, negocio, fecha, creadoEn, fotoUrl?, fotoPath? }`.
   `categoria` es una de: Kiosko, Bebidas, Panchos, Art Limpieza, Servicios,
-  Alquiler, Mantenimiento Gral, Otros (opciones fijas en el `<select>` de
-  `index.html`, no se guardan en Firestore).
+  Alquiler, Mantenimiento Gral, Sueldos, Otros, Gastos Fijos (opciones fijas
+  en el `<select>` de `index.html`, no se guardan en Firestore). Es un gasto
+  más de la misma colección — `Gastos Fijos` no tiene esquema aparte, solo
+  permisos distintos (ver "Identidad y permisos" abajo).
 - **`facturacion`** — `{ importe, turno, registradoPor, negocio, fecha, creadoEn }`.
   `turno` es `"mañana"` | `"tarde"` | `"noche"` (constante `TURNOS` en app.js) —
   de lunes a sábado son 3 turnos por día, cada uno carga su propia caja como
@@ -120,6 +122,17 @@ admin** (los empleados no las ven en absoluto, ni la tarjeta para entrar):
 - El bloque **"Facturado este mes"** dentro de "Cierre de Turno"
   (`#facturado-total-mes-wrap`, ocultado en `renderFacturado()` según
   `esAdmin`) — los empleados solo ven el total de "Hoy".
+
+La categoría **"Gastos Fijos"** (alquiler, sueldos fijos, etc. que el dueño
+no quiere que vean los empleados) solo puede cargarse y verse siendo admin:
+la opción del `<select>` (`#opt-gastos-fijos`) se oculta para no-admin en
+`openModal()`, y esos gastos se filtran de la lista y el total de la
+pantalla "Gastos" (`renderGastos()`) y del CSV exportado
+(`exportGastosCSV()`) cuando `!esAdmin`. En **Resumen mensual** (ya
+`soloAdmin`, ver arriba) no se filtran — entran en el total y en la
+rentabilidad como cualquier otro gasto, y aparecen como una categoría más
+en el desglose. La constante `CATEGORIA_GASTOS_FIJOS` en app.js es la
+única fuente de verdad del nombre de la categoría.
 
 Aparte de `esAdmin`, hay un permiso independiente por **nombre exacto**
 (no depende de ser admin ni socio) para la pantalla **"Inversión
