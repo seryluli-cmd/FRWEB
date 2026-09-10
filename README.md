@@ -212,6 +212,6 @@ el caso de arrancar un negocio distinto desde cero:
 
 ## Estado del repo
 
-Repositorio git local, sin remoto configurado todavía. El flujo de deploy
-es manual: se genera un `.zip` de la carpeta (sin `.git`) y se sube a mano
-al hosting.
+Repositorio git con remoto en GitHub (`seryluli-cmd/FRWEB`). El deploy es
+automático: Netlify está conectado a este repo y publica solo con cada
+push a `master` — no hace falta generar ni subir ningún `.zip` a mano.
