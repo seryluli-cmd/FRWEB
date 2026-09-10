@@ -45,6 +45,29 @@
   }
 }
 
+/* Tema forzado a "Oscuro" desde Ajustes (ver seleccionarTema en app.js) —
+   mismos valores que el bloque de arriba, pero sin depender de
+   prefers-color-scheme, para que gane aunque el celular esté en Claro. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-1:      #1a1a19;
+  --page-plane:     #0d0d0d;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #898781;
+  --gridline:       #2c2c2a;
+  --baseline:       #383835;
+  --border:         rgba(255,255,255,0.10);
+
+  --series-1: #9d7cf5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+
+  --good: #0ca30c;
+  --critical: #e66767;
+  --critical-bg: #3a2323;
+}
+
 html, body {
   height: 100%;
   margin: 0;
@@ -600,6 +623,31 @@ input:focus, select:focus, textarea:focus {
   line-height: 1;
 }
 .fab:active { opacity: 0.9; }
+
+/* Acceso directo a Ajustes desde "Elegir sección" — mismo estilo de botón
+   flotante que .fab, pero la mitad de tamaño, fondo blanco fijo (no sigue
+   el tema, así se ve igual y se distingue de las tarjetas en claro/oscuro)
+   y arriba a la derecha en vez de abajo. */
+.fab-ajustes {
+  position: fixed;
+  top: calc(14px + var(--safe-top));
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: 14px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  cursor: pointer;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+.fab-ajustes:active { opacity: 0.85; }
 
 /* ===== Modal ===== */
 .modal-overlay {

@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <title>Gestion FR</title>
+<script>
+// Aplica el tema guardado (Ajustes → Tema) ANTES de que se cargue styles.css,
+// para que no se vea un parpadeo del tema del sistema y después el elegido.
+// app.js (que carga como module al final del body, más tarde) es la única
+// otra fuente de verdad para data-theme — ver seleccionarTema().
+(function () {
+  var t = localStorage.getItem("gn_theme");
+  if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+})();
+</script>
 <meta name="description" content="Registro de gastos y facturación de Gestion FR">
 
 <!-- PWA -->
@@ -212,6 +222,7 @@
 
   <!-- ===== PANTALLA: ELEGIR SECCIÓN (Gastos / Facturado) ===== -->
   <div id="screen-seccion" class="screen">
+    <button id="btn-ajustes-shortcut" class="fab-ajustes" aria-label="Ir a Ajustes">⚙️</button>
     <div class="negocio-wrap">
       <button id="btn-back-to-negocio" class="back-link" aria-label="Volver">← Cambiar negocio</button>
       <div class="seccion-titulo-row">
@@ -281,6 +292,16 @@
         <h2>Tu usuario</h2>
         <p id="ajustes-usuario-actual" class="muted small">—</p>
         <button id="btn-cambiar-usuario" class="btn-secondary" style="margin-top:10px;">Cambiar de usuario</button>
+      </div>
+
+      <div class="card">
+        <h2>Tema</h2>
+        <p class="muted small">"Auto" sigue el modo del celular. Claro u Oscuro se quedan fijos en este dispositivo, sin importar la configuración del teléfono.</p>
+        <div id="tema-options" class="pagador-options">
+          <div class="pagador-chip" data-tema="auto">🌗 Auto</div>
+          <div class="pagador-chip" data-tema="light">☀️ Claro</div>
+          <div class="pagador-chip" data-tema="dark">🌙 Oscuro</div>
+        </div>
       </div>
 
       <div class="card">

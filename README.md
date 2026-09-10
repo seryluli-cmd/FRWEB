@@ -174,6 +174,27 @@ screen-ajustes → screen-fotos (fotos guardadas)
 \*\* la pestaña Balance está oculta por default (un solo dueño = balance
 siempre trivial); reaparecería sola si `socios.length` pasa a ser > 1.
 
+En `screen-seccion` hay además un botón circular ⚙️ (`#btn-ajustes-shortcut`,
+fondo blanco fijo, esquina superior derecha) que salta directo a la pestaña
+Ajustes (`switchTab("ajustes")` + `showScreen("screen-app")`), sin pasar por
+Gastos primero — mismo patrón que usa `btn-back-to-ajustes` desde "Fotos
+guardadas".
+
+## Tema (Auto / Claro / Oscuro)
+
+Ajustes → "Tema" deja elegir entre **Auto** (default, sigue el modo del
+sistema operativo), **Claro** y **Oscuro** — estos dos últimos quedan fijos
+en ese celular sin importar la configuración del teléfono. Se guarda en
+`localStorage` (`gn_theme`) y se aplica poniendo/sacando el atributo
+`data-theme` en `<html>` (`seleccionarTema()` en app.js), que es lo que lee
+`styles.css`: el bloque `:root[data-theme="dark"]` fuerza oscuro y el
+`:not([data-theme="light"])` dentro de `@media (prefers-color-scheme: dark)`
+deja que "Claro" (`data-theme="light"`) le gane al sistema. `index.html`
+tiene un script inline al principio del `<head>` que aplica el tema guardado
+antes de que cargue `styles.css`, para no mostrar un parpadeo del tema del
+sistema seguido del elegido. No depende de ninguna API nativa de iOS/Android,
+así que funciona igual en ambos.
+
 ⚠️ Ojo con este punto si se toca la navegación: como `goToNegocioOrHome()`
 saltea `screen-negocio` de una, **Ideas y Mantenimiento necesitan su propio
 acceso directo en `screen-seccion`** (ver `SECCIONES` en

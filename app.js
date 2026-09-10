@@ -74,6 +74,7 @@ const LS_CONFIG_KEY = "gn_firebaseConfig";
 const LS_SOCIOS_CACHE = "gn_socios_cache";
 const LS_COLAB_CACHE = "gn_colaboradores_cache";
 const LS_USER_KEY = "gn_current_user"; // quién está identificado en este celular
+const LS_THEME_KEY = "gn_theme"; // "auto" (default, sigue el sistema) | "light" | "dark"
 const SERIES_VARS = ["--series-1", "--series-2", "--series-3"];
 const NEUTRAL_VAR = "var(--text-muted)";
 
@@ -2908,6 +2909,28 @@ async function deleteCierre(id) {
   }
 }
 
+// ---------- Tema (Ajustes → Tema) ----------
+// El tema "auto"/"light"/"dark" vive en localStorage (ver LS_THEME_KEY) y se
+// aplica poniendo/sacando data-theme en <html> — el mismo atributo que ya
+// lee styles.css (:root[data-theme="dark"] y el :not([data-theme="light"])
+// dentro de la media query). El index.html tiene un script inline que hace
+// esto mismo al cargar la página, ANTES que este archivo, para no mostrar
+// un parpadeo con el tema del sistema y después el elegido.
+function seleccionarTema(tema) {
+  localStorage.setItem(LS_THEME_KEY, tema);
+  if (tema === "light" || tema === "dark") {
+    document.documentElement.setAttribute("data-theme", tema);
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+  renderAjustesTema();
+}
+
+function renderAjustesTema() {
+  const tema = localStorage.getItem(LS_THEME_KEY) || "auto";
+  $$("#tema-options .pagador-chip").forEach(c => c.classList.toggle("selected", c.dataset.tema === tema));
+}
+
 // ---------- Tabs ----------
 // OJO: el selector de acá adentro está limitado a #screen-app a propósito.
 // Las pantallas de Facturado / Resumen / Fotos guardadas también usan la
@@ -3072,6 +3095,14 @@ function wireEvents() {
   $("#fab-add").addEventListener("click", () => openModal());
   $("#btn-cancel-add").addEventListener("click", closeModal);
   $("#btn-cambiar-usuario").addEventListener("click", cambiarUsuario);
+  $$("#tema-options .pagador-chip").forEach(chip => {
+    chip.addEventListener("click", () => seleccionarTema(chip.dataset.tema));
+  });
+  renderAjustesTema();
+  $("#btn-ajustes-shortcut").addEventListener("click", () => {
+    switchTab("ajustes");
+    showScreen("screen-app");
+  });
   $("#btn-agregar-colaborador-ajustes").addEventListener("click", agregarColaboradorDesdeAjustes);
   $("#ajustes-colaboradores-list").addEventListener("click", (e) => {
     const removeBtn = e.target.closest(".colaborador-remove-btn");
