@@ -2,7 +2,7 @@
 
 PWA en JavaScript vanilla (sin build, sin frameworks) para que **Gestion FR**
 ⌨️ registre gastos, facturación diaria y un checklist de ideas/metas del
-negocio. La usa el dueño (admin) y sus empleados desde el celular como app
+negocio. La usa el dueño (admin) y sus colaboradores desde el celular como app
 instalada (Firestore la mantiene sincronizada entre todos los dispositivos en
 tiempo real, con soporte offline).
 
@@ -37,7 +37,7 @@ directo a la sección que necesita.
   `{ socios: [string], colaboradores: string[], admins: string[], pins: { [nombre]: "1234" } }`.
   `socios` tiene un único nombre (vos, el dueño) y `admins` siempre lo
   incluye — no hay checkbox de admin en el setup porque no hace falta
-  elegir. `colaboradores` (empleados) se puede editar después desde Ajustes.
+  elegir. El campo `colaboradores` se puede editar después desde Ajustes.
 - **`gastos`** — `{ importe, descripcion, categoria, pagadoPor, negocio, fecha, creadoEn, nota?, faltaAbonar?, formaPago?, montoEfectivo?, montoDigital?, fotos? }`.
   `fotos` es una lista de hasta 5 `{url, path}` (una factura puede tener
   varias hojas) — único lugar que la lee es `fotosDeGasto(g)`, que también
@@ -75,7 +75,7 @@ directo a la sección que necesita.
   primero). Cualquier turno cuya ventana + los 40 min de gracia ya pasaron
   y todavía no tiene cierre cargado aparece como fila roja "⚠️ CAJA NO
   CARGADA" con un botón **Cargar** — lo puede usar cualquiera (admin o
-  empleado) en cualquier momento, abre "Nuevo cierre" con esa fecha/turno
+  colaborador) en cualquier momento, abre "Nuevo cierre" con esa fecha/turno
   ya preseleccionados. Un turno todavía en curso (no venció) simplemente no
   se muestra hasta que se cargue o venza. Esto no se reconstruye para
   meses anteriores a hoy — ahí la lista sigue mostrando solo lo real, sin
@@ -117,19 +117,19 @@ directo a la sección que necesita.
 
 Cada persona se identifica con su nombre + un PIN de 4 dígitos (una vez por
 celular, se recuerda hasta usar "Cambiar de usuario" en Ajustes). El admin
-(vos) ve botones ✏️/🗑️ para editar y borrar gastos/cierres; los empleados
+(vos) ve botones ✏️/🗑️ para editar y borrar gastos/cierres; los colaboradores
 solo cargan y ven.
 
 Además, dos vistas con totales mensuales/históricos son **solo para el
-admin** (los empleados no las ven en absoluto, ni la tarjeta para entrar):
+admin** (los colaboradores no las ven en absoluto, ni la tarjeta para entrar):
 - La sección **"Resumen mensual"** (`soloAdmin` en `SECCIONES`, dentro de
-  `renderSeccionCards()`) — no aparece como tarjeta para empleados.
+  `renderSeccionCards()`) — no aparece como tarjeta para colaboradores.
 - El bloque **"Facturado este mes"** dentro de "Cierre de Turno"
   (`#facturado-total-mes-wrap`, ocultado en `renderFacturado()` según
-  `esAdmin`) — los empleados solo ven el total de "Hoy".
+  `esAdmin`) — los colaboradores solo ven el total de "Hoy".
 
 La categoría **"Gastos Fijos"** (alquiler, sueldos fijos, etc. que el dueño
-no quiere que vean los empleados) solo puede cargarse y verse siendo admin:
+no quiere que vean los colaboradores) solo puede cargarse y verse siendo admin:
 la opción del `<select>` (`#opt-gastos-fijos`) se oculta para no-admin en
 `openModal()`, y esos gastos se filtran de la lista y el total de la
 pantalla "Gastos" (`renderGastos()`) y del CSV exportado

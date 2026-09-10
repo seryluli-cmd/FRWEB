@@ -58,7 +58,7 @@ async function loadFirebaseSdk() {
 
 // ---------- Estado ----------
 // Config de Firebase de este negocio (proyecto "frkioskos") — es la misma
-// para todos los dispositivos (vos, Pola, empleados), así que viene
+// para todos los dispositivos (vos, Pola, colaboradores), así que viene
 // incluida de una vez y nadie tiene que pegarla a mano en el primer
 // inicio (ver attemptReconnect). Si algún día hace falta cambiar de
 // proyecto, alcanza con reemplazar este objeto.
@@ -92,9 +92,9 @@ const NEGOCIOS = [
 const INVERSION_META = 55000000;
 
 // Categoría de gasto visible/cargable solo por admin (alquiler, sueldos
-// fijos, etc. que el dueño no quiere que vean los empleados). Es un gasto
+// fijos, etc. que el dueño no quiere que vean los colaboradores). Es un gasto
 // más de la colección `gastos` — nada de esquema aparte — pero se filtra
-// en los 3 lugares donde un empleado podría verlo (ver CATEGORIA_GASTOS_FIJOS
+// en los 3 lugares donde un colaborador podría verlo (ver CATEGORIA_GASTOS_FIJOS
 // en renderGastos, openModal y exportGastosCSV). En Resumen mensual (ya
 // admin-only) no se filtra: entra en el total y en la rentabilidad como
 // cualquier otro gasto.
@@ -1192,7 +1192,7 @@ function renderCierreItem(f) {
 // Fila de un turno del mes en curso ya vencido (ver turnosDelMesActual)
 // que todavía no tiene cierre cargado. El botón "Cargar" abre el modal de
 // Nuevo cierre con esa fecha y turno ya preseleccionados — cualquiera puede
-// tocarlo (admin o empleado), igual que cualquiera puede cargar un cierre
+// tocarlo (admin o colaborador), igual que cualquiera puede cargar un cierre
 // nuevo con el +.
 function renderCierreFaltante(fecha, turno) {
   const li = document.createElement("li");
@@ -2129,14 +2129,14 @@ function renderAjustesSocios() {
       const esAdminColab = admins.includes(nombre);
       const badge = esAdminColab ? `<span class="admin-badge">Admin</span>` : "";
       // Solo el admin puede volver admin (o sacarle el admin) a un
-      // empleado — permite que alguien que no es socio (ej. otro dueño
-      // agregado como empleado para no entrar al reparto) pueda editar
+      // colaborador — permite que alguien que no es socio (ej. otro dueño
+      // agregado como colaborador para no entrar al reparto) pueda editar
       // y borrar igual que un socio, sin tocar el cálculo de Balance.
       const adminToggleBtn = esAdmin
         ? `<button type="button" class="icon-btn admin-toggle-btn" data-nombre="${escapeHtml(nombre)}" aria-label="${esAdminColab ? "Quitar admin" : "Hacer admin"}" title="${esAdminColab ? "Quitar admin" : "Hacer admin"}">${esAdminColab ? "🛡️" : "🔓"}</button>`
         : "";
       const removeBtn = esAdmin
-        ? `<button type="button" class="icon-btn danger colaborador-remove-btn" data-nombre="${escapeHtml(nombre)}" aria-label="Quitar empleado">🗑️</button>`
+        ? `<button type="button" class="icon-btn danger colaborador-remove-btn" data-nombre="${escapeHtml(nombre)}" aria-label="Quitar colaborador">🗑️</button>`
         : "";
       row.innerHTML = `<span class="socio-dot" style="background:${payerColorVar(nombre)}"></span> ${escapeHtml(nombre)} ${badge}<span style="margin-left:auto;display:flex;gap:4px;">${adminToggleBtn}${removeBtn}</span>`;
       colabWrap.appendChild(row);
@@ -2149,7 +2149,7 @@ function renderAjustesSocios() {
 
   // Historial de logeos: escondido para todos salvo Sergio (ver
   // registrarLogin/cargarHistorialLogins) — acá puede haber más de un
-  // admin (un empleado ascendido, ver adminToggleBtn arriba), por eso se
+  // admin (un colaborador ascendido, ver adminToggleBtn arriba), por eso se
   // chequea el nombre puntual y no esAdmin.
   const esSergio = usuarioActual === "Sergio";
   $("#ajustes-historial-logins-card").classList.toggle("hidden", !esSergio);
@@ -2164,7 +2164,7 @@ function renderAjustesSocios() {
   $('.tabbtn[data-tab="balance"]').classList.toggle("hidden", socios.length <= 1);
 }
 
-// Alta/baja de empleados directo desde Ajustes — a diferencia de los
+// Alta/baja de colaboradores directo desde Ajustes — a diferencia de los
 // socios (que se definen una única vez en el setup), la lista de
 // colaboradores puede crecer o achicarse con el tiempo. Solo el admin.
 async function agregarColaboradorDesdeAjustes() {
@@ -2180,7 +2180,7 @@ async function agregarColaboradorDesdeAjustes() {
       colaboradores: fbSdk.arrayUnion(nombre)
     });
     input.value = "";
-    showToast("Empleado agregado ✅");
+    showToast("Colaborador agregado ✅");
   } catch (e) {
     console.error(e);
     showToast("No se pudo agregar. Revisá tu conexión.");
@@ -2193,17 +2193,17 @@ async function quitarColaborador(nombre) {
     await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), {
       colaboradores: fbSdk.arrayRemove(nombre)
     });
-    showToast("Empleado quitado");
+    showToast("Colaborador quitado");
   } catch (e) {
     console.error(e);
     showToast("No se pudo quitar. Revisá tu conexión.");
   }
 }
 
-// Hacer/sacar admin a un empleado (no cambia si entra o no al reparto —
+// Hacer/sacar admin a un colaborador (no cambia si entra o no al reparto —
 // eso depende solo de estar en "socios", no en "admins"). Sirve para dar
 // permisos de editar/borrar a alguien sin sumarlo al cálculo de Balance
-// (ej. otro dueño que se agrega como empleado a propósito).
+// (ej. otro dueño que se agrega como colaborador a propósito).
 async function toggleAdminColaborador(nombre) {
   const yaEsAdmin = admins.includes(nombre);
   try {
