@@ -36,6 +36,7 @@ async function loadFirebaseSdk() {
     onSnapshot: fsMod.onSnapshot,
     query: fsMod.query,
     orderBy: fsMod.orderBy,
+    where: fsMod.where,
     doc: fsMod.doc,
     getDoc: fsMod.getDoc,
     getDocs: fsMod.getDocs,
@@ -106,6 +107,24 @@ let fotosGastoModal = []; // fotos del gasto que se está cargando/editando, en 
 let fotosGastoABorrar = []; // paths de Storage de fotos existentes que se sacaron en este modal — se borran recién si se confirma "Guardar" (cancelar el modal no borra nada)
 let selectedFotoFacturadoBlob = null; // foto comprimida, lista para subir (modal de Cierre de Turno — sigue siendo una sola, no forma parte de este cambio)
 const FOTO_RETENCION_DIAS = 120; // ~4 meses — pasado esto, se borra sola la foto (no el gasto)
+
+// Ventana de historial que se trae de Firestore para gastos/facturación —
+// antes se traía TODO desde el primer día, lo cual iba a ir pesando cada
+// vez más (más lecturas facturadas, más tiempo de sincronización, más
+// memoria en el celular) a medida que se acumulen meses de uso real. 12
+// meses cubre de sobra la navegación mes a mes que ya existe en Gastos/
+// Facturado/Resumen (ver gastosMesOffset y afines) sin traer años de
+// historia que casi nunca se consultan. Si en algún momento hace falta
+// mirar más atrás de esta ventana, ese es un paso aparte (cargar ese mes
+// puntual bajo demanda) — no está resuelto todavía.
+const HISTORIAL_MESES_CARGADOS = 12;
+function fechaLimiteHistorial() {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  d.setMonth(d.getMonth() - (HISTORIAL_MESES_CARGADOS - 1));
+  return d;
+}
 let fotosLimpiezaHecha = false;
 let socios = [];           // ["Sergio"] — el/los dueño(s), entran en el reparto (acá siempre 1)
 let colaboradores = [];    // ["Encargada"] — pueden pagar/cargar, NO entran en el reparto
@@ -853,7 +872,11 @@ function listenSocios() {
 }
 
 function listenGastos() {
-  const q = fbSdk.query(fbSdk.collection(db, "gastos"), fbSdk.orderBy("fecha", "desc"));
+  const q = fbSdk.query(
+    fbSdk.collection(db, "gastos"),
+    fbSdk.where("fecha", ">=", fechaLimiteHistorial()),
+    fbSdk.orderBy("fecha", "desc")
+  );
   fbSdk.onSnapshot(q, (snapshot) => {
     gastos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderGastos();
@@ -871,7 +894,11 @@ function listenGastos() {
 }
 
 function listenFacturacion() {
-  const q = fbSdk.query(fbSdk.collection(db, "facturacion"), fbSdk.orderBy("fecha", "desc"));
+  const q = fbSdk.query(
+    fbSdk.collection(db, "facturacion"),
+    fbSdk.where("fecha", ">=", fechaLimiteHistorial()),
+    fbSdk.orderBy("fecha", "desc")
+  );
   fbSdk.onSnapshot(q, (snapshot) => {
     facturaciones = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderFacturado();

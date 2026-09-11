@@ -33,6 +33,19 @@ directo a la sección que necesita.
 
 ## Modelo de datos (Firestore)
 
+⚠️ **`gastos` y `facturacion` no se traen completos**: `listenGastos()` /
+`listenFacturacion()` en app.js filtran con `where("fecha", ">=", ...)` a
+los últimos `HISTORIAL_MESES_CARGADOS` (12) meses, no todo el historial
+desde el principio — así el tiempo de carga, la memoria del celular y las
+lecturas facturadas por Firestore no crecen sin límite a medida que pasan
+los meses de uso real. La navegación mes a mes de Gastos/Facturado/Resumen
+(`gastosMesOffset` y afines) queda cubierta de sobra por esta ventana; ir
+más atrás de los 12 meses todavía no está resuelto (haría falta una
+consulta puntual a ese mes bajo demanda, no implementada). Las demás
+colecciones (`ideas`, `reportes`, `inversion`, `logins`) sí se traen
+completas: son listas acotadas por naturaleza (no un registro por
+transacción diaria), no crecen de la misma forma.
+
 - **`config/socios`** (un solo documento) —
   `{ socios: [string], colaboradores: string[], admins: string[], pins: { [nombre]: "1234" } }`.
   `socios` tiene un único nombre (vos, el dueño) y `admins` siempre lo
