@@ -23,18 +23,36 @@ directo a la sección que necesita.
 
 ## Archivos
 
+`app.js` importa de todos los módulos de abajo — arranca la app y cablea
+los event listeners de la UI, pero ya no tiene la lógica de cada pantalla.
+
 | Archivo | Contenido |
 |---|---|
 | [index.html](index.html) | Todas las pantallas y modales del DOM. Un solo archivo, se muestra/oculta con clases `.screen`/`.active`. |
-| [app.js](app.js) | Toda la lógica: estado en memoria, Firebase, render, event listeners. |
+| [state.js](state.js) | Estado compartido entre pantallas (`state`) y las constantes fijas (config de Firebase, negocios, categorías default, PIN, etc.). |
+| [utils.js](utils.js) | Funciones puras/DOM sin estado: plata, fechas, turnos, colores por nombre, CSV, compresión de fotos. |
+| [firebase.js](firebase.js) | Carga del SDK de Firebase por CDN e inicio de sesión/conexión (`connectAndBoot`). |
+| [identidad.js](identidad.js) | Chips de pagador compartidos y permisos por nombre exacto (Inversión Recuperada). |
+| [sesion.js](sesion.js) | Pantalla "¿Quién sos?" + PIN, socios/colaboradores en vivo, estado de conectividad. |
+| [navegacion.js](navegacion.js) | Tarjetas de negocio/sección y cambio de pestañas dentro de `screen-app`. |
+| [setup.js](setup.js) | Pantalla de configuración inicial (pegar `firebaseConfig` a mano). |
+| [gastos.js](gastos.js) | Pantalla Gastos y Gastos S/Admin: listado, modal, fotos, chips de pagador, CSV. |
+| [facturado.js](facturado.js) | Pantalla Facturado / Cierre de Turno, incluida la detección de cajas faltantes. |
+| [resumen.js](resumen.js) | Resumen mensual y Balance entre socios. |
+| [checklist.js](checklist.js) | Fábrica compartida por Ideas y Reportes de Mantenimiento (`crearModuloChecklist`). |
+| [ideas.js](ideas.js) / [reportes.js](reportes.js) | Configuran `checklist.js` con su colección, ids del DOM y textos puntuales. |
+| [inversion.js](inversion.js) | Pantalla "Inversión Recuperada" (acceso restringido por nombre). |
+| [ajustes.js](ajustes.js) | Pantalla Ajustes: socios/colaboradores, categorías, tema, exportar CSV, reset. |
+| [app.js](app.js) | Arranque (`start()`/`attemptReconnect()`) y cableado de todos los `addEventListener` de la UI. |
 | [styles.css](styles.css) | Variables CSS (`:root`) para tema claro/oscuro automático. |
 | [manifest.json](manifest.json) / [service-worker.js](service-worker.js) | Configuración PWA. |
 | [icons/](icons/) | Íconos de la app (192/512/maskable). |
 
 ## Modelo de datos (Firestore)
 
-⚠️ **`gastos` y `facturacion` no se traen completos**: `listenGastos()` /
-`listenFacturacion()` en app.js filtran con `where("fecha", ">=", ...)` a
+⚠️ **`gastos` y `facturacion` no se traen completos**: `listenGastos()`
+(gastos.js) / `listenFacturacion()` (facturado.js) filtran con
+`where("fecha", ">=", ...)` a
 los últimos `HISTORIAL_MESES_CARGADOS` (12) meses, no todo el historial
 desde el principio — así el tiempo de carga, la memoria del celular y las
 lecturas facturadas por Firestore no crecen sin límite a medida que pasan
@@ -63,7 +81,7 @@ transacción diaria), no crecen de la misma forma.
   que marca un gasto individual como privado (checkbox "🔒 Gasto Admin" en
   el modal) — ver "Identidad y permisos" abajo.
 - **`facturacion`** — `{ importe, turno, registradoPor, negocio, fecha, creadoEn }`.
-  `turno` es `"mañana"` | `"tarde"` | `"noche"` (constante `TURNOS` en app.js) —
+  `turno` es `"mañana"` | `"tarde"` | `"noche"` (constante `TURNOS` en utils.js) —
   todos los días de la semana, domingo incluido, son 3 turnos por día, cada
   uno carga su propia caja como un cierre separado. `turnoActual()` propone
   el turno según la hora (mañana 06-14, tarde 14-22, noche 22-06) al abrir
@@ -73,8 +91,8 @@ transacción diaria), no crecen de la misma forma.
   también tiene una sección "Facturado por día y turno" que agrupa los
   cierres del mes por día calendario y muestra el total de cada turno
   dentro de ese día.
-- **Detección de cajas faltantes** (`turnosDelMesActual()` / `turnoVencimiento()`
-  en app.js): la lista de "Cierre de Turno" arma la grilla completa del mes
+- **Detección de cajas faltantes** (`turnosDelMes()` / `turnoVencimiento()`
+  en utils.js, usadas desde facturado.js): la lista de "Cierre de Turno" arma la grilla completa del mes
   en curso (día 1 a hoy, orden Mañana → Tarde → Noche, más reciente
   primero). Cualquier turno cuya ventana + los 40 min de gracia ya pasaron
   y todavía no tiene cierre cargado aparece como fila roja "⚠️ CAJA NO
@@ -92,10 +110,10 @@ transacción diaria), no crecen de la misma forma.
   "Inversión Recuperada": cada doc guarda el monto **total acumulado** que
   Sergio (el inversor) lleva recuperado del negocio a esa fecha — no un
   incremento. Lo que se muestra como "recuperado hasta ahora" es el `monto`
-  del doc más reciente (`inversionActual()` en app.js); la meta fija
-  ($55.000.000, `INVERSION_META` en app.js) no se guarda en Firestore. Los
+  del doc más reciente (`inversionActual()` en inversion.js); la meta fija
+  ($55.000.000, `INVERSION_META` en state.js) no se guarda en Firestore. Los
   montos de esta pantalla se muestran con el sufijo "Millones" (ver
-  renderInversion en app.js) — es solo texto agregado al valor ya
+  `renderInversion()` en inversion.js) — es solo texto agregado al valor ya
   formateado por `money()`, no una conversión de unidades.
   Pantalla exclusiva: ver "Identidad y permisos" abajo.
 - **`reportes`** — misma estructura y mecánica que `ideas` (ver arriba),
@@ -139,9 +157,9 @@ tarjeta para entrar):
 Alquiler, etc.) no está hardcodeada — vive en Firestore (`config/socios`,
 campo `categoriasGastos`, array de nombres) y los admin la editan desde
 Ajustes → "Categorías de gastos" (crear, borrar). `CATEGORIAS_GASTOS_DEFAULT`
-en app.js es la semilla con la que arranca una instalación nueva (y con la
+en state.js es la semilla con la que arranca una instalación nueva (y con la
 que se completa una vieja que todavía no tenía el campo, ver
-`listenSocios()`). Una categoría no tiene ninguna noción de privacidad —
+`listenSocios()` en sesion.js). Una categoría no tiene ninguna noción de privacidad —
 eso es un flag aparte, por gasto individual (ver debajo).
 
 **Gastos privados ("Gasto Admin")**: al cargar o editar un gasto, el admin
@@ -169,9 +187,9 @@ Aparte de `esAdmin`, hay un permiso independiente por **nombre exacto**
 (no depende de ser admin ni socio) para la pantalla **"Inversión
 Recuperada"** — la primera tarjeta de `screen-seccion`, arriba de Gastos:
 solo aparece para `usuarioActual === "Sergio"` o `"Pola"`
-(`puedeVerInversion()` en app.js); del resto no la ve ni sabe que existe.
+(`puedeVerInversion()` en identidad.js); del resto no la ve ni sabe que existe.
 Adentro, solo Sergio puede cargar una actualización o borrar una del
-historial (`puedeCargarInversion()`) — Pola solo mira. Mismo patrón que
+historial (`puedeCargarInversion()`, mismo archivo) — Pola solo mira. Mismo patrón que
 usa el "Historial de logeos" en Ajustes (visible solo si
 `usuarioActual === "Sergio"`).
 
@@ -213,7 +231,7 @@ Ajustes → "Tema" deja elegir entre **Auto** (default, sigue el modo del
 sistema operativo), **Claro** y **Oscuro** — estos dos últimos quedan fijos
 en ese celular sin importar la configuración del teléfono. Se guarda en
 `localStorage` (`gn_theme`) y se aplica poniendo/sacando el atributo
-`data-theme` en `<html>` (`seleccionarTema()` en app.js), que es lo que lee
+`data-theme` en `<html>` (`seleccionarTema()` en ajustes.js), que es lo que lee
 `styles.css`: el bloque `:root[data-theme="dark"]` fuerza oscuro y el
 `:not([data-theme="light"])` dentro de `@media (prefers-color-scheme: dark)`
 deja que "Claro" (`data-theme="light"`) le gane al sistema. `index.html`
@@ -223,10 +241,10 @@ sistema seguido del elegido. No depende de ninguna API nativa de iOS/Android,
 así que funciona igual en ambos.
 
 ⚠️ Ojo con este punto si se toca la navegación: como `goToNegocioOrHome()`
-saltea `screen-negocio` de una, **Ideas y Mantenimiento necesitan su propio
-acceso directo en `screen-seccion`** (ver `SECCIONES` en
-`renderSeccionCards()`) — si se sacan de ahí sin dejar otro camino, quedan
-con código andando pero inalcanzables desde la UI.
+(sesion.js) saltea `screen-negocio` de una, **Ideas y Mantenimiento necesitan
+su propio acceso directo en `screen-seccion`** (ver `SECCIONES` en
+`renderSeccionCards()`, navegacion.js) — si se sacan de ahí sin dejar otro
+camino, quedan con código andando pero inalcanzables desde la UI.
 
 ## Exportar datos (CSV)
 
@@ -244,7 +262,7 @@ python -m http.server 5178
 ## Configurar Firebase
 
 La config de Firebase de este negocio (proyecto `frkioskos`) ya viene
-incluida en el código (`DEFAULT_FIREBASE_CONFIG` en app.js) — por eso al
+incluida en el código (`DEFAULT_FIREBASE_CONFIG` en state.js) — por eso al
 abrir la app por primera vez en un celular nuevo no hay que pegar nada,
 `attemptReconnect()` la usa sola y entra directo a "¿Quién sos?". La
 pantalla de pegar `firebaseConfig` (`screen-setup`) sigue existiendo como
@@ -260,7 +278,7 @@ el caso de arrancar un negocio distinto desde cero:
 5. Activar **Storage** si se van a subir fotos de facturas (requiere plan
    Blaze — tiene cuota gratis amplia).
 6. Pegar el `firebaseConfig` nuevo en la pantalla de configuración inicial
-   (o reemplazar `DEFAULT_FIREBASE_CONFIG` en app.js si va a ser el
+   (o reemplazar `DEFAULT_FIREBASE_CONFIG` en state.js si va a ser el
    default para todos los dispositivos).
 
 ## Estado del repo
