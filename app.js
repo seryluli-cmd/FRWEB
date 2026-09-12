@@ -92,14 +92,39 @@ const NEGOCIOS = [
 // es un dato del acuerdo, no algo que cambie desde la operación diaria.
 const INVERSION_META = 55000000;
 
-// Categoría de gasto visible/cargable solo por admin (alquiler, sueldos
-// fijos, etc. que el dueño no quiere que vean los colaboradores). Es un gasto
-// más de la colección `gastos` — nada de esquema aparte — pero se filtra
-// en los 3 lugares donde un colaborador podría verlo (ver CATEGORIA_GASTOS_FIJOS
-// en renderGastos, openModal y exportGastosCSV). En Resumen mensual (ya
-// admin-only) no se filtra: entra en el total y en la rentabilidad como
-// cualquier otro gasto.
-const CATEGORIA_GASTOS_FIJOS = "Gastos Fijos";
+// Categorías de gasto: lista editable por los admin desde Ajustes →
+// "Categorías de gastos" (ver renderAjustesCategorias). Cada categoría es
+// { nombre, soloAdmin } — las marcadas soloAdmin (alquiler, sueldos fijos,
+// etc. que el dueño no quiere que vean los colaboradores) son un gasto más
+// de la colección `gastos`, nada de esquema aparte, pero se filtran en los
+// 3 lugares donde un colaborador podría verlas (ver categoriaEsPrivada en
+// renderGastos, openModal y exportGastosCSV) y tienen su propia pantalla
+// "Gastos S/Admin" para cargarlas/verlas rápido sin admin de por medio. En
+// Resumen mensual (ya admin-only) no se filtra: entra en el total y en la
+// rentabilidad como cualquier otro gasto.
+// Se guardan en Firestore (config/socios, campo categoriasGastos) para que
+// los admin puedan crear/borrar/marcar privada una categoría sin tocar
+// código — ver listenSocios(). CATEGORIAS_GASTOS_DEFAULT es la semilla para
+// instalaciones viejas que todavía no tienen ese campo.
+const CATEGORIAS_GASTOS_DEFAULT = [
+  { nombre: "Kiosko", soloAdmin: false },
+  { nombre: "Bebidas", soloAdmin: false },
+  { nombre: "Panchos", soloAdmin: false },
+  { nombre: "Art Limpieza", soloAdmin: false },
+  { nombre: "Servicios", soloAdmin: false },
+  { nombre: "Alquiler", soloAdmin: true },
+  { nombre: "Mantenimiento Gral", soloAdmin: false },
+  { nombre: "Sueldos", soloAdmin: true },
+  { nombre: "Otros", soloAdmin: false },
+  { nombre: "Gastos Fijos", soloAdmin: true }
+];
+let categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
+let categoriasGastosSembrado = false; // evita reescribir el default más de una vez por sesión
+
+function categoriaEsPrivada(nombre) {
+  const cat = categoriasGastos.find(c => c.nombre === nombre);
+  return cat ? !!cat.soloAdmin : false;
+}
 
 let fbApp = null, auth = null, db = null, storage = null;
 const MAX_FOTOS_GASTO = 5; // una factura de varias hojas puede necesitar más de una foto — ver fotosDeGasto()
@@ -152,37 +177,20 @@ const TURNO_LABEL = { "mañana": "Mañana", "tarde": "Tarde", "noche": "Noche" }
 // el turno saliente sigue siendo "el actual" hasta 40 min después de su
 // hora nominal de cierre (ej: a las 6:20 todavía propone "noche", no
 // "mañana", porque lo más probable es que estén cerrando la noche).
-//
-// EXCEPCIÓN: los domingos son distintos — solo 2 turnos de 12hs en vez de 3:
-// "Mañana" pasa a durar 06-18 (absorbe lo que sería "Tarde") y "Noche" pasa
-// a ser 18-06 del lunes. No existe "Tarde" los domingos. El sábado a la
-// noche sigue siendo el turno normal 22-06 (termina el domingo a la
-// mañana), eso no cambia.
+// Domingo es un día como cualquier otro: los mismos 3 turnos, sin excepción.
 const TURNO_GRACIA_MIN = 40;
-function esDiaDomingo(date) {
-  return date.getDay() === 0;
-}
 
-// Etiqueta legible de un turno según el día calendario al que pertenece:
-// los domingos "mañana"/"noche" se muestran como "Domingo T1"/"Domingo T2"
-// (Turno 1 = 06-18, Turno 2 = 18-06) en vez de "Mañana"/"Noche", porque ese
-// día no son medios turnos de 8hs sino dos de 12hs — ver esDiaDomingo.
 function turnoLabelParaFecha(fecha, turno) {
-  if (esDiaDomingo(fecha)) {
-    if (turno === "mañana") return "Domingo T1";
-    if (turno === "noche") return "Domingo T2";
-  }
   return TURNO_LABEL[turno] || turno;
 }
 
 function turnoActual() {
   const now = new Date();
   const mins = now.getHours() * 60 + now.getMinutes();
-  const finManana = esDiaDomingo(now) ? 18 : 14; // domingo: "Mañana" dura hasta las 18, no las 14
   // > (no >=): a los 40 min exactos todavía es el turno saliente cerrando,
   // recién al minuto 41 se considera empezado el turno siguiente.
-  if (mins > 6 * 60 + TURNO_GRACIA_MIN && mins <= finManana * 60 + TURNO_GRACIA_MIN) return "mañana";
-  if (!esDiaDomingo(now) && mins > 14 * 60 + TURNO_GRACIA_MIN && mins <= 22 * 60 + TURNO_GRACIA_MIN) return "tarde";
+  if (mins > 6 * 60 + TURNO_GRACIA_MIN && mins <= 14 * 60 + TURNO_GRACIA_MIN) return "mañana";
+  if (mins > 14 * 60 + TURNO_GRACIA_MIN && mins <= 22 * 60 + TURNO_GRACIA_MIN) return "tarde";
   return "noche";
 }
 
@@ -190,15 +198,12 @@ function turnoActual() {
 // (fin de su ventana + los mismos TURNO_GRACIA_MIN de arriba) — se usa para
 // saber si YA debería estar cargado o todavía puede estar en curso. Noche
 // cruza medianoche, por eso vence a las 06:xx del día SIGUIENTE al que
-// arrancó (mismo criterio que fechaParaTurno()) — esto no cambia los
-// domingos, porque tanto la noche normal como la del domingo terminan
-// igual a las 06:00 del día siguiente, lo único que cambia es a qué hora
-// arrancan.
+// arrancó (mismo criterio que fechaParaTurno()).
 function turnoVencimiento(diaBase, turno) {
   const d = new Date(diaBase);
   d.setHours(0, 0, 0, 0);
   if (turno === "mañana") {
-    d.setHours(esDiaDomingo(d) ? 18 : 14, TURNO_GRACIA_MIN, 0, 0);
+    d.setHours(14, TURNO_GRACIA_MIN, 0, 0);
     return d;
   }
   if (turno === "tarde") { d.setHours(22, TURNO_GRACIA_MIN, 0, 0); return d; }
@@ -208,9 +213,9 @@ function turnoVencimiento(diaBase, turno) {
 }
 
 // Los turnos de cada día del MES EN CURSO, de día 1 a hoy — el mes
-// completo, sin filtrar todavía por si cada turno ya venció. Domingo tiene
-// solo 2 (Mañana, Noche); el resto de los días tiene los 3 de siempre.
-// Quien arma la grilla (renderFacturado) decide caso por caso: con cierre
+// completo, sin filtrar todavía por si cada turno ya venció. Todos los
+// días (incluido domingo) tienen los mismos 3 turnos. Quien arma la
+// grilla (renderFacturado) decide caso por caso: con cierre
 // real, se muestra tal cual (haya vencido o no su ventana); sin cierre
 // real, recién se marca "faltante" si turnoVencimiento() ya pasó — así un
 // cierre cargado apenas termina el turno (antes de la gracia) aparece en su
@@ -227,8 +232,7 @@ function turnosDelMes(base) {
   const fin = esMesActual ? now : new Date(base.getFullYear(), base.getMonth() + 1, 0);
   const slots = [];
   while (dia <= fin) {
-    const turnosDelDia = esDiaDomingo(dia) ? ["mañana", "noche"] : TURNOS;
-    turnosDelDia.forEach(turno => slots.push({ fecha: new Date(dia), turno }));
+    TURNOS.forEach(turno => slots.push({ fecha: new Date(dia), turno }));
     dia.setDate(dia.getDate() + 1);
   }
   return slots;
@@ -237,6 +241,7 @@ function turnosDelMes(base) {
 let resumenMesOffset = 0;  // 0 = mes actual, -1 = mes anterior, etc. (Resumen mensual)
 let gastosMesOffset = 0;   // ídem, para la pantalla de Gastos — se reinicia a 0 cada vez que se entra
 let facturadoMesOffset = 0; // ídem, para la pantalla de Facturado/Cierre de turno
+let gastosAdminMesOffset = 0; // ídem, para la pantalla de Gastos S/Admin
 let pendingFirebaseConfig = null; // config guardada entre el paso 1 y 2 del setup inicial
 let usuarioActual = null;  // nombre con el que se identificó este celular (ver resumeSession)
 let esAdmin = false;       // usuarioActual ∈ admins
@@ -482,6 +487,15 @@ async function connectAndBoot(config, namesFromInput, colabFromInput) {
     admins = Array.isArray(data.admins) ? data.admins : [];
     pins = data.pins && typeof data.pins === "object" ? data.pins : {};
     claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
+    if (Array.isArray(data.categoriasGastos)) {
+      categoriasGastos = data.categoriasGastos;
+    } else {
+      // Instalación de antes de que existiera este campo — se siembra una
+      // sola vez con el default, para que quede persistido en Firestore.
+      categoriasGastosSembrado = true;
+      categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
+      await sdk.updateDoc(socioDocRef, { categoriasGastos }).catch(() => {});
+    }
   } else {
     if (!namesFromInput || namesFromInput.some(n => !n.trim())) {
       throw new Error("Completá tu nombre.");
@@ -491,7 +505,9 @@ async function connectAndBoot(config, namesFromInput, colabFromInput) {
     admins = [];
     pins = {};
     claveMaestraAdmin = "llavez";
-    await sdk.setDoc(socioDocRef, { socios, colaboradores, admins, pins, claveMaestraAdmin });
+    categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
+    categoriasGastosSembrado = true;
+    await sdk.setDoc(socioDocRef, { socios, colaboradores, admins, pins, claveMaestraAdmin, categoriasGastos });
   }
 
   localStorage.setItem(LS_CONFIG_KEY, JSON.stringify(config));
@@ -780,6 +796,7 @@ function renderSeccionCards(biz) {
     { id: "gastos", emoji: "🧾", nombre: "Gastos", sub: "Cargar gastos y ver el balance entre socios" },
     { id: "facturado", emoji: "💰", nombre: "Cierre de Turno", sub: "Anotar efectivo y Digital" },
     { id: "resumen", emoji: "📊", nombre: "Resumen mensual", sub: "Ver los totales de cada mes", soloAdmin: true },
+    { id: "gastosadmin", emoji: "🔒", nombre: "Gastos S/Admin", sub: "Alquiler y otros gastos privados", soloAdmin: true },
     { id: "ideas", emoji: "💡", nombre: "Caja de IDEAS", sub: "Aportar ideas para mejorar el negocio y el entorno laboral" },
     { id: "mantenimiento", emoji: "🔨", nombre: "Reportes de Mantenimiento", sub: "Reportar roturas o cosas para arreglar" }
   ];
@@ -818,6 +835,10 @@ function selectSeccion(id) {
     resumenMesOffset = 0;
     renderResumen();
     showScreen("screen-resumen");
+  } else if (id === "gastosadmin") {
+    gastosAdminMesOffset = 0;
+    renderGastosAdmin();
+    showScreen("screen-gastos-admin");
   } else if (id === "ideas") {
     renderIdeas();
     showScreen("screen-ideas");
@@ -857,6 +878,15 @@ function listenSocios() {
       admins = Array.isArray(data.admins) ? data.admins : [];
       pins = data.pins && typeof data.pins === "object" ? data.pins : {};
       claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
+      if (Array.isArray(data.categoriasGastos)) {
+        categoriasGastos = data.categoriasGastos;
+      } else if (!categoriasGastosSembrado) {
+        // Instalación de antes de que existiera este campo — se siembra una
+        // sola vez con el default, para que quede persistido en Firestore.
+        categoriasGastosSembrado = true;
+        categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
+        fbSdk.updateDoc(socioDocRef, { categoriasGastos }).catch(() => {});
+      }
       localStorage.setItem(LS_SOCIOS_CACHE, JSON.stringify(socios));
       localStorage.setItem(LS_COLAB_CACHE, JSON.stringify(colaboradores));
       esAdmin = usuarioActual ? admins.includes(usuarioActual) : false;
@@ -865,6 +895,7 @@ function listenSocios() {
       renderAjustesSocios();
       renderBalance();
       renderGastos();
+      renderGastosAdmin();
       renderFacturado();
       renderIdeas();
     }
@@ -880,6 +911,7 @@ function listenGastos() {
   fbSdk.onSnapshot(q, (snapshot) => {
     gastos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderGastos();
+    renderGastosAdmin();
     renderBalance();
     if (negocioActual) renderResumen();
     setSyncOffline(false);
@@ -980,6 +1012,70 @@ function gastosFechaBase() {
 // Resumen mensual, se ve un mes a la vez — por defecto el actual (ver
 // selectSeccion()) — con flechas para ir a uno anterior si hace falta
 // editar o borrar algo viejo.
+// Arma el <li> de un gasto — usado tanto por la lista de Gastos común
+// como por la de Gastos S/Admin (ver renderGastosAdmin), que muestran el
+// mismo tipo de fila, solo que filtradas a distintas categorías.
+function crearGastoLi(g) {
+  const fecha = fechaDeRegistro(g);
+
+  const fotoBtn = fotosDeGasto(g).length
+    ? `<button type="button" class="foto-link" data-id="${g.id}" aria-label="Ver foto de la factura">📷</button>`
+    : "";
+
+  // Editar/borrar solo para el admin — el resto solo puede cargar y ver.
+  const adminBtns = esAdmin
+    ? `<button type="button" class="icon-btn gasto-edit-btn" data-id="${g.id}" aria-label="Editar gasto">✏️</button>
+       <button type="button" class="icon-btn danger gasto-delete-btn" data-id="${g.id}" aria-label="Borrar gasto">🗑️</button>`
+    : "";
+
+  // Falta abonar: se tildó porque todavía no se le pagó a quien
+  // trajo la mercadería (ej. te dejan pagar unos días después) — la
+  // fila queda en rojo. Tocar el aviso lo marca como pagado al toque
+  // (guarda directo, sin pasar por el modal de Editar).
+  const metaFaltaAbonar = g.faltaAbonar
+    ? ` · <button type="button" class="meta-falta-abonar" data-id="${g.id}">⚠️ Falta abonar</button>`
+    : "";
+
+  // Notas largas hacían la fila del gasto muy alta en el celular — se
+  // recortan a las primeras 2 palabras y el resto se ve tocando "Ver
+  // detalle completo" (usa data-id, no el texto de la nota, para no
+  // tener que escaparla dentro de un atributo HTML — ver verDetalleGasto()).
+  const notaPalabras = g.nota ? g.nota.trim().split(/\s+/) : [];
+  const notaLarga = notaPalabras.length > 2;
+  const notaCorta = notaPalabras.slice(0, 2).join(" ");
+  const notaHtml = g.nota
+    ? `<div class="meta gasto-nota">📝 ${escapeHtml(notaCorta)}${notaLarga ? `… <button type="button" class="ver-detalle-btn" data-id="${g.id}">Ver detalle completo</button>` : ""}</div>`
+    : "";
+
+  const li = document.createElement("li");
+  li.className = "expense-item" + (g.faltaAbonar ? " falta-abonar" : "");
+  // Foto/editar/borrar van en su propia fila abajo (ver .expense-item-actions
+  // en styles.css) — así el texto de arriba usa todo el ancho disponible
+  // en vez de competir con los íconos cuando la descripción/nota es larga.
+  const acciones = (fotoBtn || adminBtns)
+    ? `<div class="expense-item-actions">${fotoBtn}${adminBtns}</div>`
+    : "";
+  li.innerHTML = `
+    <div class="expense-item-top">
+      <div class="avatar" style="background:${payerColorVar(g.pagadoPor)}">${socioInitial(g.pagadoPor)}</div>
+      <div class="info">
+        <div class="desc">${escapeHtml(g.descripcion || "Sin descripción")}</div>
+        <div class="meta">${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} · ${escapeHtml(g.categoria || "Otros")} · Pagó ${escapeHtml(g.pagadoPor || "?")} · ${formaPagoLabel(g)}${metaFaltaAbonar}</div>
+        ${notaHtml}
+      </div>
+      <div class="amount">${money(g.importe)}</div>
+    </div>
+    ${acciones}
+  `;
+  return li;
+}
+
+// Antes mostraba TODOS los gastos sin importar el mes (solo el total de
+// arriba estaba filtrado por mes actual, lo cual era inconsistente e
+// iba acumulando meses viejos mezclados en la lista). Ahora, igual que
+// Resumen mensual, se ve un mes a la vez — por defecto el actual (ver
+// selectSeccion()) — con flechas para ir a uno anterior si hace falta
+// editar o borrar algo viejo.
 function renderGastos() {
   const list = $("#expenses-list");
   const empty = $("#expenses-empty");
@@ -994,7 +1090,7 @@ function renderGastos() {
   $("#btn-gastos-mes-siguiente").disabled = esMesActual;
 
   const gastosMes = gastosDelNegocio().filter(g => {
-    if (!esAdmin && g.categoria === CATEGORIA_GASTOS_FIJOS) return false;
+    if (!esAdmin && categoriaEsPrivada(g.categoria)) return false;
     const f = fechaDeRegistro(g);
     return f.getMonth() === targetMonth && f.getFullYear() === targetYear;
   });
@@ -1006,64 +1102,56 @@ function renderGastos() {
   }
 
   let totalMes = 0;
-
   gastosMes.forEach(g => {
-    const fecha = fechaDeRegistro(g);
     totalMes += Number(g.importe) || 0;
-
-    const fotoBtn = fotosDeGasto(g).length
-      ? `<button type="button" class="foto-link" data-id="${g.id}" aria-label="Ver foto de la factura">📷</button>`
-      : "";
-
-    // Editar/borrar solo para el admin — el resto solo puede cargar y ver.
-    const adminBtns = esAdmin
-      ? `<button type="button" class="icon-btn gasto-edit-btn" data-id="${g.id}" aria-label="Editar gasto">✏️</button>
-         <button type="button" class="icon-btn danger gasto-delete-btn" data-id="${g.id}" aria-label="Borrar gasto">🗑️</button>`
-      : "";
-
-    // Falta abonar: se tildó porque todavía no se le pagó a quien
-    // trajo la mercadería (ej. te dejan pagar unos días después) — la
-    // fila queda en rojo. Tocar el aviso lo marca como pagado al toque
-    // (guarda directo, sin pasar por el modal de Editar).
-    const metaFaltaAbonar = g.faltaAbonar
-      ? ` · <button type="button" class="meta-falta-abonar" data-id="${g.id}">⚠️ Falta abonar</button>`
-      : "";
-
-    // Notas largas hacían la fila del gasto muy alta en el celular — se
-    // recortan a las primeras 2 palabras y el resto se ve tocando "Ver
-    // detalle completo" (usa data-id, no el texto de la nota, para no
-    // tener que escaparla dentro de un atributo HTML — ver verDetalleGasto()).
-    const notaPalabras = g.nota ? g.nota.trim().split(/\s+/) : [];
-    const notaLarga = notaPalabras.length > 2;
-    const notaCorta = notaPalabras.slice(0, 2).join(" ");
-    const notaHtml = g.nota
-      ? `<div class="meta gasto-nota">📝 ${escapeHtml(notaCorta)}${notaLarga ? `… <button type="button" class="ver-detalle-btn" data-id="${g.id}">Ver detalle completo</button>` : ""}</div>`
-      : "";
-
-    const li = document.createElement("li");
-    li.className = "expense-item" + (g.faltaAbonar ? " falta-abonar" : "");
-    // Foto/editar/borrar van en su propia fila abajo (ver .expense-item-actions
-    // en styles.css) — así el texto de arriba usa todo el ancho disponible
-    // en vez de competir con los íconos cuando la descripción/nota es larga.
-    const acciones = (fotoBtn || adminBtns)
-      ? `<div class="expense-item-actions">${fotoBtn}${adminBtns}</div>`
-      : "";
-    li.innerHTML = `
-      <div class="expense-item-top">
-        <div class="avatar" style="background:${payerColorVar(g.pagadoPor)}">${socioInitial(g.pagadoPor)}</div>
-        <div class="info">
-          <div class="desc">${escapeHtml(g.descripcion || "Sin descripción")}</div>
-          <div class="meta">${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} · ${escapeHtml(g.categoria || "Otros")} · Pagó ${escapeHtml(g.pagadoPor || "?")} · ${formaPagoLabel(g)}${metaFaltaAbonar}</div>
-          ${notaHtml}
-        </div>
-        <div class="amount">${money(g.importe)}</div>
-      </div>
-      ${acciones}
-    `;
-    list.appendChild(li);
+    list.appendChild(crearGastoLi(g));
   });
 
   $("#total-mes").textContent = money(totalMes);
+}
+
+// Gastos S/Admin: mismo formulario/lista/edición/foto que Gastos común,
+// solo que filtrado a las categorías marcadas soloAdmin (alquiler, sueldos,
+// etc.) — pantalla propia, visible solo para admin (ver SECCIONES en
+// renderSeccionCards), para no mezclar lo privado con la lista que ven los
+// colaboradores. El total del mes SÍ sigue entrando en Resumen mensual (que
+// no filtra por categoría) — lo único que cambia acá es dónde se ve la
+// lista y quién puede verla.
+function gastosAdminFechaBase() {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + gastosAdminMesOffset);
+  return d;
+}
+
+function renderGastosAdmin() {
+  const list = $("#expenses-admin-list");
+  const empty = $("#expenses-admin-empty");
+  list.innerHTML = "";
+
+  const base = gastosAdminFechaBase();
+  const targetMonth = base.getMonth();
+  const targetYear = base.getFullYear();
+  $("#gastos-admin-mes-label").textContent = mesLabel(base);
+  const now = new Date();
+  const esMesActual = targetMonth === now.getMonth() && targetYear === now.getFullYear();
+  $("#btn-gastos-admin-mes-siguiente").disabled = esMesActual;
+
+  const gastosMes = gastosDelNegocio().filter(g => {
+    if (!categoriaEsPrivada(g.categoria)) return false;
+    const f = fechaDeRegistro(g);
+    return f.getMonth() === targetMonth && f.getFullYear() === targetYear;
+  });
+
+  empty.classList.toggle("hidden", gastosMes.length > 0);
+
+  let totalMes = 0;
+  gastosMes.forEach(g => {
+    totalMes += Number(g.importe) || 0;
+    list.appendChild(crearGastoLi(g));
+  });
+
+  $("#total-mes-admin").textContent = money(totalMes);
 }
 
 // Fotos de un gasto, siempre como lista — único lugar que lo calcula.
@@ -1328,8 +1416,7 @@ function renderFacturado() {
   $("#facturado-total-mes-wrap").classList.toggle("hidden", !esAdmin);
   $("#facturado-total-mes").textContent = money(totalMes);
   $("#facturado-total-hoy").textContent = money(totalHoy);
-  const turnosEsperadosHoy = esDiaDomingo(now) ? 2 : TURNOS.length; // domingo: solo 2 turnos de 12hs
-  $("#facturado-turnos-hoy").textContent = `${turnosHoy.size} de ${turnosEsperadosHoy} turnos cargados`;
+  $("#facturado-turnos-hoy").textContent = `${turnosHoy.size} de ${TURNOS.length} turnos cargados`;
 }
 
 // ---------- Render: Ideas (checklist compartido) ----------
@@ -1834,8 +1921,7 @@ function renderResumen() {
       const esHoy = dia.fecha.toDateString() === now.toDateString();
       const card = document.createElement("div");
       card.className = "socio-total-card";
-      const turnosDelDia = esDiaDomingo(dia.fecha) ? ["mañana", "noche"] : TURNOS; // domingo: sin "Tarde"
-      const turnosHtml = turnosDelDia.map(t =>
+      const turnosHtml = TURNOS.map(t =>
         `<span>${turnoLabelParaFecha(dia.fecha, t)}: ${money(dia.turnos[t])}</span>`
       ).join("");
       card.innerHTML = `
@@ -2173,6 +2259,7 @@ function renderAjustesSocios() {
   }
   $("#admin-add-colaborador-wrap").classList.toggle("hidden", !esAdmin);
   $("#ajustes-clave-maestra-card").classList.toggle("hidden", !esAdmin);
+  renderAjustesCategorias();
 
   // Historial de logeos: escondido para todos salvo Sergio (ver
   // registrarLogin/cargarHistorialLogins) — acá puede haber más de un
@@ -2189,6 +2276,75 @@ function renderAjustesSocios() {
   // Con un solo dueño (socios.length === 1) el "balance entre socios" es
   // siempre trivial (100% para esa única persona) — no aporta nada, se oculta.
   $('.tabbtn[data-tab="balance"]').classList.toggle("hidden", socios.length <= 1);
+}
+
+// Lista de categorías de gasto en Ajustes — solo la ve/edita el admin
+// (crear, marcar/desmarcar "privada", borrar). Ver categoriasGastos y
+// categoriaEsPrivada más arriba.
+function renderAjustesCategorias() {
+  $("#ajustes-categorias-card").classList.toggle("hidden", !esAdmin);
+  if (!esAdmin) return;
+
+  const wrap = $("#ajustes-categorias-list");
+  wrap.innerHTML = "";
+  categoriasGastos.forEach((cat) => {
+    const row = document.createElement("div");
+    row.className = "ajustes-socio-row";
+    const badge = cat.soloAdmin ? `<span class="admin-badge">Privada</span>` : "";
+    row.innerHTML = `
+      ${escapeHtml(cat.nombre)} ${badge}
+      <span style="margin-left:auto;display:flex;gap:4px;">
+        <button type="button" class="icon-btn categoria-toggle-btn" data-nombre="${escapeHtml(cat.nombre)}" aria-label="${cat.soloAdmin ? "Hacer pública" : "Hacer privada"}" title="${cat.soloAdmin ? "Hacer pública" : "Hacer privada"}">${cat.soloAdmin ? "🔒" : "🔓"}</button>
+        <button type="button" class="icon-btn danger categoria-remove-btn" data-nombre="${escapeHtml(cat.nombre)}" aria-label="Borrar categoría">🗑️</button>
+      </span>`;
+    wrap.appendChild(row);
+  });
+}
+
+async function agregarCategoriaDesdeAjustes() {
+  const input = $("#input-nueva-categoria");
+  const nombre = input.value.trim();
+  if (!nombre) return;
+  if (categoriasGastos.some(c => c.nombre === nombre)) {
+    showToast("Esa categoría ya existe.");
+    return;
+  }
+  const soloAdmin = $("#input-nueva-categoria-privada").checked;
+  const nuevas = categoriasGastos.concat([{ nombre, soloAdmin }]);
+  try {
+    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), { categoriasGastos: nuevas });
+    input.value = "";
+    $("#input-nueva-categoria-privada").checked = false;
+    showToast("Categoría agregada ✅");
+  } catch (e) {
+    console.error(e);
+    showToast("No se pudo agregar. Revisá tu conexión.");
+  }
+}
+
+async function toggleCategoriaPrivada(nombre) {
+  const nuevas = categoriasGastos.map(c => c.nombre === nombre ? { ...c, soloAdmin: !c.soloAdmin } : c);
+  try {
+    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), { categoriasGastos: nuevas });
+  } catch (e) {
+    console.error(e);
+    showToast("No se pudo actualizar. Revisá tu conexión.");
+  }
+}
+
+// Borrar una categoría no toca los gastos que ya la tienen cargada (queda
+// el nombre guardado tal cual, ver renderCategoriaOptions) — solo deja de
+// poder elegirse para gastos nuevos.
+async function quitarCategoria(nombre) {
+  if (!confirm(`¿Borrar la categoría "${nombre}"? Los gastos que ya la tienen cargada no cambian, solo no se va a poder elegir de nuevo.`)) return;
+  const nuevas = categoriasGastos.filter(c => c.nombre !== nombre);
+  try {
+    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), { categoriasGastos: nuevas });
+    showToast("Categoría borrada");
+  } catch (e) {
+    console.error(e);
+    showToast("No se pudo borrar. Revisá tu conexión.");
+  }
 }
 
 // Alta/baja de colaboradores directo desde Ajustes — a diferencia de los
@@ -2300,7 +2456,7 @@ function downloadCSV(filename, rows) {
 function exportGastosCSV() {
   const rows = [["Fecha", "Categoría", "Descripción", "Importe", "Pagado por", "Forma de pago", "Efectivo", "Digital", "Nota"]];
   gastosDelNegocio()
-    .filter(g => esAdmin || g.categoria !== CATEGORIA_GASTOS_FIJOS)
+    .filter(g => esAdmin || !categoriaEsPrivada(g.categoria))
     .slice()
     .sort((a, b) => fechaDeRegistro(a) - fechaDeRegistro(b))
     .forEach(g => {
@@ -2421,7 +2577,34 @@ function calcularCampoMixtoFaltante() {
   }
 }
 
-function openModal(gasto) {
+// Reconstruye las <option> de "Categoría" según el contexto: soloPrivadas
+// (true desde "Gastos S/Admin" — ver renderGastosAdmin/openModal) muestra
+// solo categorías soloAdmin; si no, muestra las públicas + las privadas
+// para el admin (mismo criterio de siempre, generalizado — ver
+// categoriaEsPrivada). categoriaActual se agrega igual aunque ya no exista
+// en la lista (un admin la borró después de cargada), para no perder el
+// valor guardado de un gasto viejo al editarlo.
+function renderCategoriaOptions(soloPrivadas, categoriaActual) {
+  const sel = $("#input-categoria");
+  let cats = categoriasGastos.filter(c => soloPrivadas ? c.soloAdmin : (!c.soloAdmin || esAdmin));
+  if (categoriaActual && !cats.some(c => c.nombre === categoriaActual)) {
+    cats = cats.concat([{ nombre: categoriaActual, soloAdmin: false }]);
+  }
+  sel.innerHTML = cats.map(c => `<option value="${escapeHtml(c.nombre)}">${escapeHtml(c.nombre)}</option>`).join("");
+  return cats.length;
+}
+
+function openModal(gasto, opts) {
+  // Al editar, se queda en el mismo "mundo" (privado o público) del gasto
+  // que ya tenía. Al crear, depende de desde dónde se abrió el modal (ver
+  // fab-add vs. fab-add-gastos-admin).
+  const soloPrivadas = gasto ? categoriaEsPrivada(gasto.categoria) : !!(opts && opts.soloPrivadas);
+  const cantCategorias = renderCategoriaOptions(soloPrivadas, gasto ? gasto.categoria : null);
+  if (!cantCategorias) {
+    showToast(soloPrivadas ? "Creá primero una categoría privada en Ajustes." : "Creá primero una categoría en Ajustes.");
+    return;
+  }
+
   editingGastoId = gasto ? gasto.id : null;
   // Un gasto nuevo queda a nombre de quien está identificado en este
   // celular — no hace falta preguntar, si ya se identificó al entrar. Al
@@ -2431,8 +2614,7 @@ function openModal(gasto) {
 
   $("#input-importe").value = gasto ? formatMoneyValue(gasto.importe) : "";
   $("#input-descripcion").value = gasto ? (gasto.descripcion || "") : "";
-  $("#opt-gastos-fijos").hidden = !esAdmin; // "Gastos Fijos" solo elegible por admin
-  $("#input-categoria").value = gasto ? (gasto.categoria || "Kiosko") : "Kiosko";
+  if (gasto) $("#input-categoria").value = gasto.categoria || "Otros";
   $("#input-falta-abonar").checked = gasto ? !!gasto.faltaAbonar : false;
   $("#input-nota").value = gasto ? (gasto.nota || "") : "";
 
@@ -2669,12 +2851,10 @@ async function marcarAbonado(id) {
 // (arrancó ayer) — recién a partir de esa hora pasa a ser el de esta
 // noche. Sin este ajuste, cerrar el turno Noche después de medianoche
 // quedaba fechado al día (y a veces al MES) siguiente, en vez del día en
-// que realmente arrancó. La Noche arranca a las 22hs, salvo los domingos
-// que arranca a las 18hs (ver esDiaDomingo / turnoActual).
+// que realmente arrancó. La Noche arranca a las 22hs.
 function fechaParaTurno(turno) {
   const hoy = new Date();
-  const inicioNoche = esDiaDomingo(hoy) ? 18 : 22;
-  if (turno === "noche" && hoy.getHours() < inicioNoche) {
+  if (turno === "noche" && hoy.getHours() < 22) {
     const ayer = new Date(hoy);
     ayer.setDate(ayer.getDate() - 1);
     return ayer;
@@ -2686,22 +2866,10 @@ function setDefaultFechaFact() {
   $("#input-fecha-fact").value = fechaLocalISO(fechaParaTurno(turnoActual()));
 }
 
-// Oculta el chip "Tarde" cuando la fecha del cierre cae domingo (ver
-// esDiaDomingo / turnoActual): ese día no existe ese turno, son 2 de 12hs
-// en vez de 3. Si el turno ya elegido era "Tarde" y la fecha pasa a ser
-// domingo, se limpia la selección para forzar a elegir de nuevo entre
-// Mañana/Noche. Se llama al abrir el modal y cada vez que se cambia la
+// Sincroniza qué chip de turno queda marcado como seleccionado según
+// selectedTurno. Se llama al abrir el modal y cada vez que se cambia la
 // fecha a mano.
 function actualizarChipsTurnoPorFecha() {
-  const fechaStr = $("#input-fecha-fact").value;
-  const fecha = fechaStr ? new Date(fechaStr + "T12:00:00") : new Date();
-  const domingo = esDiaDomingo(fecha);
-  $('#turno-options .pagador-chip[data-turno="tarde"]').classList.toggle("hidden", domingo);
-  $('#turno-options .pagador-chip[data-turno="mañana"]').textContent = turnoLabelParaFecha(fecha, "mañana");
-  $('#turno-options .pagador-chip[data-turno="noche"]').textContent = turnoLabelParaFecha(fecha, "noche");
-  if (domingo && selectedTurno === "tarde") {
-    selectedTurno = null;
-  }
   $$("#turno-options .pagador-chip").forEach(c => c.classList.toggle("selected", c.dataset.turno === selectedTurno));
 }
 
@@ -3137,6 +3305,13 @@ function wireEvents() {
     const adminBtn = e.target.closest(".admin-toggle-btn");
     if (adminBtn) toggleAdminColaborador(adminBtn.dataset.nombre);
   });
+  $("#btn-agregar-categoria").addEventListener("click", agregarCategoriaDesdeAjustes);
+  $("#ajustes-categorias-list").addEventListener("click", (e) => {
+    const toggleBtn = e.target.closest(".categoria-toggle-btn");
+    if (toggleBtn) { toggleCategoriaPrivada(toggleBtn.dataset.nombre); return; }
+    const removeBtn = e.target.closest(".categoria-remove-btn");
+    if (removeBtn) quitarCategoria(removeBtn.dataset.nombre);
+  });
   $("#btn-guardar-clave-maestra").addEventListener("click", guardarClaveMaestra);
   $("#btn-pin-cancel").addEventListener("click", closePinModal);
   $("#btn-pin-confirm").addEventListener("click", confirmPinModal);
@@ -3205,6 +3380,17 @@ function wireEvents() {
     resumenMesOffset++;
     renderResumen();
   });
+  $("#btn-back-to-seccion-gastosadmin").addEventListener("click", volverASeccion);
+  $("#btn-gastos-admin-mes-anterior").addEventListener("click", () => {
+    gastosAdminMesOffset--;
+    renderGastosAdmin();
+  });
+  $("#btn-gastos-admin-mes-siguiente").addEventListener("click", () => {
+    if (gastosAdminMesOffset >= 0) return;
+    gastosAdminMesOffset++;
+    renderGastosAdmin();
+  });
+  $("#fab-add-gastos-admin").addEventListener("click", () => openModal(null, { soloPrivadas: true }));
   $("#fab-add-facturado").addEventListener("click", () => openModalFacturado());
   $("#turno-options").addEventListener("click", (e) => {
     const chip = e.target.closest(".pagador-chip");
@@ -3220,7 +3406,6 @@ function wireEvents() {
       $("#input-fecha-fact").value = fechaLocalISO(fechaParaTurno(selectedTurno));
     }
   });
-  // Si cambian la fecha a mano, "Tarde" se oculta/muestra según si cayó domingo.
   $("#input-fecha-fact").addEventListener("change", actualizarChipsTurnoPorFecha);
   $("#btn-cancel-add-facturado").addEventListener("click", closeModalFacturado);
   $("#btn-save-facturado").addEventListener("click", saveCierre);
@@ -3370,8 +3555,10 @@ function wireEvents() {
   });
   $("#btn-quitar-foto-fact").addEventListener("click", resetFotoFieldFact);
 
-  // Foto, editar y borrar de un gasto ya cargado (delegado, la lista se re-dibuja seguido)
-  $("#expenses-list").addEventListener("click", (e) => {
+  // Foto, editar y borrar de un gasto ya cargado (delegado, la lista se
+  // re-dibuja seguido) — mismo handler para la lista de Gastos común y la
+  // de Gastos S/Admin (ver renderGastosAdmin), son la misma colección.
+  function onGastoListClick(e) {
     const fotoBtn = e.target.closest(".foto-link");
     if (fotoBtn) {
       const g = gastos.find(x => x.id === fotoBtn.dataset.id);
@@ -3390,7 +3577,9 @@ function wireEvents() {
     if (abonarBtn) { marcarAbonado(abonarBtn.dataset.id); return; }
     const verDetalleBtn = e.target.closest(".ver-detalle-btn");
     if (verDetalleBtn) verDetalleGasto(verDetalleBtn.dataset.id);
-  });
+  }
+  $("#expenses-list").addEventListener("click", onGastoListClick);
+  $("#expenses-admin-list").addEventListener("click", onGastoListClick);
   $("#btn-cerrar-detalle-gasto").addEventListener("click", closeModalDetalleGasto);
   $("#modal-detalle-gasto").addEventListener("click", (e) => {
     if (e.target.id === "modal-detalle-gasto") closeModalDetalleGasto();

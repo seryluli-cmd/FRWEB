@@ -324,6 +324,21 @@
         </div>
       </div>
 
+      <div class="card hidden" id="ajustes-categorias-card">
+        <h2>Categorías de gastos</h2>
+        <p class="muted small">Las marcadas 🔒 "Privada" no las ven los colaboradores — ni en la lista de Gastos, ni en el CSV exportado. Se pueden cargar y ver desde "Gastos S/Admin". Sí se suman en Resumen mensual (ya es solo para admin).</p>
+        <div id="ajustes-categorias-list" class="ajustes-socios-list"></div>
+
+        <div style="margin-top:14px;">
+          <div class="field">
+            <label for="input-nueva-categoria">Nueva categoría</label>
+            <input type="text" id="input-nueva-categoria" placeholder="Ej: Impuestos" maxlength="30">
+          </div>
+          <label class="checkbox-label"><input type="checkbox" id="input-nueva-categoria-privada"> 🔒 Privada (solo admin)</label>
+          <button type="button" id="btn-agregar-categoria" class="btn-secondary" style="margin-top:10px;">+ Agregar categoría</button>
+        </div>
+      </div>
+
       <div class="card hidden" id="ajustes-clave-maestra-card">
         <h2>Clave maestra de administradores</h2>
         <p class="muted small">La usan los admins para crear su PIN la primera vez en un celular nuevo. Cambiarla acá no afecta los PIN que ya tiene cada uno.</p>
@@ -428,6 +443,40 @@
     </section>
 
     <button id="fab-add-facturado" class="fab" aria-label="Agregar cierre">+</button>
+  </div>
+
+  <!-- ===== PANTALLA: GASTOS S/ADMIN (privados, solo admin) ===== -->
+  <div id="screen-gastos-admin" class="screen">
+
+    <header class="topbar">
+      <button id="btn-back-to-seccion-gastosadmin" class="topbar-title" aria-label="Volver a la sección">
+        <span class="topbar-back-arrow"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18"></polyline></svg></span>
+        <span class="logo-badge small">🔒</span>
+        <span>Gastos S/Admin</span>
+      </button>
+    </header>
+
+    <section class="tab active">
+      <div class="month-nav">
+        <button id="btn-gastos-admin-mes-anterior" class="month-nav-btn" aria-label="Mes anterior">‹</button>
+        <div class="month-nav-label" id="gastos-admin-mes-label">Mes</div>
+        <button id="btn-gastos-admin-mes-siguiente" class="month-nav-btn" aria-label="Mes siguiente">›</button>
+      </div>
+
+      <div class="stat-hero">
+        <div class="stat-hero-label">Total gastado (privado)</div>
+        <div class="stat-hero-value" id="total-mes-admin">$0</div>
+      </div>
+
+      <div id="expenses-admin-empty" class="empty-state hidden">
+        <p>Todavía no hay gastos privados cargados.</p>
+        <p class="muted small">Tocá el botón + para agregar el primero.</p>
+      </div>
+
+      <ul id="expenses-admin-list" class="expenses-list"></ul>
+    </section>
+
+    <button id="fab-add-gastos-admin" class="fab" aria-label="Agregar gasto privado">+</button>
   </div>
 
   <!-- ===== PANTALLA: RESUMEN MENSUAL ===== -->
@@ -586,18 +635,8 @@
 
       <div class="field">
         <label for="input-categoria">Categoría</label>
-        <select id="input-categoria">
-          <option value="Kiosko">Kiosko</option>
-          <option value="Bebidas">Bebidas</option>
-          <option value="Panchos">Panchos</option>
-          <option value="Art Limpieza">Art Limpieza</option>
-          <option value="Servicios">Servicios</option>
-          <option value="Alquiler">Alquiler</option>
-          <option value="Mantenimiento Gral">Mantenimiento Gral</option>
-          <option value="Sueldos">Sueldos</option>
-          <option value="Otros">Otros</option>
-          <option value="Gastos Fijos" id="opt-gastos-fijos">Gastos Fijos (solo admin)</option>
-        </select>
+        <!-- Opciones armadas por JS según el contexto (ver renderCategoriaOptions en app.js) -->
+        <select id="input-categoria"></select>
       </div>
 
       <div class="field">

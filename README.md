@@ -47,7 +47,7 @@ completas: son listas acotadas por naturaleza (no un registro por
 transacción diaria), no crecen de la misma forma.
 
 - **`config/socios`** (un solo documento) —
-  `{ socios: [string], colaboradores: string[], admins: string[], pins: { [nombre]: "1234" } }`.
+  `{ socios: [string], colaboradores: string[], admins: string[], pins: { [nombre]: "1234" }, categoriasGastos: [{ nombre, soloAdmin }] }`.
   `socios` tiene un único nombre (vos, el dueño) y `admins` siempre lo
   incluye — no hay checkbox de admin en el setup porque no hace falta
   elegir. El campo `colaboradores` se puede editar después desde Ajustes.
@@ -64,24 +64,15 @@ transacción diaria), no crecen de la misma forma.
   permisos distintos (ver "Identidad y permisos" abajo).
 - **`facturacion`** — `{ importe, turno, registradoPor, negocio, fecha, creadoEn }`.
   `turno` es `"mañana"` | `"tarde"` | `"noche"` (constante `TURNOS` en app.js) —
-  de lunes a sábado son 3 turnos por día, cada uno carga su propia caja como
-  un cierre separado. `turnoActual()` propone el turno según la hora (mañana
-  06-14, tarde 14-22, noche 22-06) al abrir "Nuevo cierre", pero se puede
-  cambiar a mano. La pantalla de Facturado suma los de **hoy** aparte
-  (`facturado-total-hoy` / `facturado-turnos-hoy`, "X de 3 turnos cargados")
-  además del total del mes. El **Resumen mensual** también tiene una
-  sección "Facturado por día y turno" que agrupa los cierres del mes por
-  día calendario y muestra el total de cada turno dentro de ese día.
-  ⚠️ **Excepción: los domingos son distintos** (`esDiaDomingo()` en app.js) —
-  ese día solo hay 2 turnos de 12hs en vez de 3, y se muestran con etiquetas
-  propias en vez de "Mañana"/"Noche" (ver `turnoLabelParaFecha()`): valor
-  `"mañana"` en Firestore se muestra como **"Domingo T1"** (06-18, absorbe
-  lo que sería "Tarde", que no existe ese día — el chip se oculta solo en
-  el modal según la fecha elegida) y valor `"noche"` se muestra como
-  **"Domingo T2"** (18-06 del lunes). El dato guardado sigue siendo
-  `"mañana"`/`"noche"` como cualquier otro día — lo único que cambia es la
-  etiqueta y el horario. El sábado a la noche sigue siendo el turno normal
-  22-06 (termina el domingo a la mañana), eso no cambia.
+  todos los días de la semana, domingo incluido, son 3 turnos por día, cada
+  uno carga su propia caja como un cierre separado. `turnoActual()` propone
+  el turno según la hora (mañana 06-14, tarde 14-22, noche 22-06) al abrir
+  "Nuevo cierre", pero se puede cambiar a mano. La pantalla de Facturado
+  suma los de **hoy** aparte (`facturado-total-hoy` / `facturado-turnos-hoy`,
+  "X de 3 turnos cargados") además del total del mes. El **Resumen mensual**
+  también tiene una sección "Facturado por día y turno" que agrupa los
+  cierres del mes por día calendario y muestra el total de cada turno
+  dentro de ese día.
 - **Detección de cajas faltantes** (`turnosDelMesActual()` / `turnoVencimiento()`
   en app.js): la lista de "Cierre de Turno" arma la grilla completa del mes
   en curso (día 1 a hoy, orden Mañana → Tarde → Noche, más reciente
@@ -133,24 +124,44 @@ celular, se recuerda hasta usar "Cambiar de usuario" en Ajustes). El admin
 (vos) ve botones ✏️/🗑️ para editar y borrar gastos/cierres; los colaboradores
 solo cargan y ven.
 
-Además, dos vistas con totales mensuales/históricos son **solo para el
-admin** (los colaboradores no las ven en absoluto, ni la tarjeta para entrar):
+Además, tres vistas con totales mensuales/históricos o gastos privados son
+**solo para el admin** (los colaboradores no las ven en absoluto, ni la
+tarjeta para entrar):
 - La sección **"Resumen mensual"** (`soloAdmin` en `SECCIONES`, dentro de
   `renderSeccionCards()`) — no aparece como tarjeta para colaboradores.
+- La sección **"Gastos S/Admin"** (ver más abajo) — mismo mecanismo.
 - El bloque **"Facturado este mes"** dentro de "Cierre de Turno"
   (`#facturado-total-mes-wrap`, ocultado en `renderFacturado()` según
   `esAdmin`) — los colaboradores solo ven el total de "Hoy".
 
-La categoría **"Gastos Fijos"** (alquiler, sueldos fijos, etc. que el dueño
-no quiere que vean los colaboradores) solo puede cargarse y verse siendo admin:
-la opción del `<select>` (`#opt-gastos-fijos`) se oculta para no-admin en
-`openModal()`, y esos gastos se filtran de la lista y el total de la
+**Categorías de gasto editables**: la lista de categorías (Kiosko, Bebidas,
+Alquiler, etc.) no está hardcodeada — vive en Firestore
+(`config/socios`, campo `categoriasGastos`, array de `{ nombre, soloAdmin }`)
+y los admin la editan desde Ajustes → "Categorías de gastos" (crear, borrar,
+marcar/desmarcar 🔒 "Privada"). `CATEGORIAS_GASTOS_DEFAULT` en app.js es la
+semilla con la que arranca una instalación nueva (y con la que se completa
+una vieja que todavía no tenía el campo, ver `listenSocios()`).
+
+Las categorías marcadas **soloAdmin** (por default: Alquiler, Sueldos,
+Gastos Fijos — alquiler, sueldos fijos, etc. que el dueño no quiere que vean
+los colaboradores) solo pueden cargarse y verse siendo admin: el `<select>`
+de categoría (`renderCategoriaOptions()`) no ofrece esas opciones a
+colaboradores, y esos gastos se filtran de la lista y el total de la
 pantalla "Gastos" (`renderGastos()`) y del CSV exportado
-(`exportGastosCSV()`) cuando `!esAdmin`. En **Resumen mensual** (ya
-`soloAdmin`, ver arriba) no se filtran — entran en el total y en la
-rentabilidad como cualquier otro gasto, y aparecen como una categoría más
-en el desglose. La constante `CATEGORIA_GASTOS_FIJOS` en app.js es la
-única fuente de verdad del nombre de la categoría.
+(`exportGastosCSV()`) cuando `!esAdmin` — ver `categoriaEsPrivada()`. Para
+cargarlos/verlos rápido sin scrollear entre los gastos públicos, tienen su
+propia pantalla **"Gastos S/Admin"** (`renderGastosAdmin()`, misma
+colección `gastos`, mismo formulario/edición/foto que la pantalla común,
+filtrado a categorías privadas) — no reemplaza la lista común: un admin que
+entra a "Gastos" sigue viendo también los privados mezclados, igual que
+siempre. En **Resumen mensual** (ya `soloAdmin`, ver arriba) no se filtran —
+entran en el total y en la rentabilidad como cualquier otro gasto, y
+aparecen como una categoría más en el desglose.
+
+⚠️ Este ocultamiento es solo de pantalla, igual que el PIN (ver más abajo)
+— no hay reglas de seguridad de Firestore en este repo, así que un
+colaborador que abra las herramientas de desarrollador del navegador
+podría leer igual los datos "privados" directo de la red.
 
 Aparte de `esAdmin`, hay un permiso independiente por **nombre exacto**
 (no depende de ser admin ni socio) para la pantalla **"Inversión
@@ -173,11 +184,12 @@ los datos de alguien mal intencionado con la config.
 screen-quien-sos (identificarte con PIN)
   └─ screen-seccion (auto-entra directo, un solo negocio — elegir
        Inversión Recuperada* / Gastos / Facturado / Resumen mensual /
-       Caja de IDEAS / Reportes de Mantenimiento)
+       Gastos S/Admin*** / Caja de IDEAS / Reportes de Mantenimiento)
        ├─ screen-inversion (*solo Sergio y Pola, ver "Identidad y permisos")
        ├─ screen-app       (tabs: Gastos, Balance**, Ajustes)
        ├─ screen-facturado
        ├─ screen-resumen
+       ├─ screen-gastos-admin (***solo admin, ver "Identidad y permisos")
        ├─ screen-ideas
        └─ screen-mantenimiento
 screen-negocio (queda casi sin uso con un solo negocio — solo se ve si
