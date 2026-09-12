@@ -107,6 +107,18 @@ const CATEGORIAS_GASTOS_DEFAULT = [
 let categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
 let categoriasGastosSembrado = false; // evita reescribir el default más de una vez por sesión
 
+// Convierte categorías del formato viejo {nombre, soloAdmin} (privacidad
+// por categoría, commit 3273b8c, reemplazado horas después por el checkbox
+// "Gasto Admin" por gasto — ver "Rediseñar gastos privados" en README) a
+// simples nombres. Documentos de Firestore que quedaron con ese formato
+// antes del rediseño llegan acá tal cual; filtra cualquier entrada que no
+// se pueda recuperar.
+function normalizarCategoriasGastos(raw) {
+  return raw
+    .map(c => typeof c === "string" ? c : (c && typeof c.nombre === "string" ? c.nombre : null))
+    .filter(Boolean);
+}
+
 let fbApp = null, auth = null, db = null, storage = null;
 const MAX_FOTOS_GASTO = 5; // una factura de varias hojas puede necesitar más de una foto — ver fotosDeGasto()
 let fotosGastoModal = []; // fotos del gasto que se está cargando/editando, en el orden del modal — cada una { tipo:"existente", url, path } (ya estaba guardada) o { tipo:"nueva", blob, previewUrl } (recién elegida, falta subir)
@@ -469,7 +481,12 @@ async function connectAndBoot(config, namesFromInput, colabFromInput) {
     pins = data.pins && typeof data.pins === "object" ? data.pins : {};
     claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
     if (Array.isArray(data.categoriasGastos)) {
-      categoriasGastos = data.categoriasGastos;
+      categoriasGastos = normalizarCategoriasGastos(data.categoriasGastos);
+      if (data.categoriasGastos.some(c => typeof c !== "string")) {
+        // Quedó guardado en el formato viejo {nombre, soloAdmin} — se
+        // reescribe ya corregido para que no vuelva a pasar.
+        await sdk.updateDoc(socioDocRef, { categoriasGastos }).catch(() => {});
+      }
     } else {
       // Instalación de antes de que existiera este campo — se siembra una
       // sola vez con el default, para que quede persistido en Firestore.
@@ -860,7 +877,12 @@ function listenSocios() {
       pins = data.pins && typeof data.pins === "object" ? data.pins : {};
       claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
       if (Array.isArray(data.categoriasGastos)) {
-        categoriasGastos = data.categoriasGastos;
+        categoriasGastos = normalizarCategoriasGastos(data.categoriasGastos);
+        if (data.categoriasGastos.some(c => typeof c !== "string")) {
+          // Quedó guardado en el formato viejo {nombre, soloAdmin} — se
+          // reescribe ya corregido para que no vuelva a pasar.
+          fbSdk.updateDoc(socioDocRef, { categoriasGastos }).catch(() => {});
+        }
       } else if (!categoriasGastosSembrado) {
         // Instalación de antes de que existiera este campo — se siembra una
         // sola vez con el default, para que quede persistido en Firestore.
