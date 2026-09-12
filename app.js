@@ -10,7 +10,6 @@ import {
   money, parseMoneyInput, formatMoneyValue, wireMoneyInput,
   MESES, mesLabel, fechaDeRegistro, fechaLocalISO, fechaLimiteHistorial,
   fechaParaTurno,
-  socioInitial,
   escapeHtml, conTimeout, compressImage, parseFirebaseConfig,
   setSyncOffline
 } from "./utils.js";
@@ -20,7 +19,6 @@ import {
 // el patrón antes de mover pantallas más grandes (Gastos, Facturado).
 import { listenIdeas, renderIdeas, toggleVoto, toggleIdeaEstado, deleteIdea, openModalIdea, closeModalIdea, saveIdea } from "./ideas.js";
 import { listenReportes, renderReportes, toggleVotoReporte, toggleReporteEstado, deleteReporte, openModalReporte, closeModalReporte, saveReporte } from "./reportes.js";
-import { allPagadores, payerColorVar, puedeVerInversion } from "./identidad.js";
 import { listenInversion, renderInversion, openModalInversion, closeModalInversion, saveInversion, deleteInversion } from "./inversion.js";
 import {
   listenGastos, renderGastos, renderGastosAdmin, fotosDeGasto,
@@ -36,11 +34,13 @@ import {
 } from "./facturado.js";
 import { renderResumen, renderBalance } from "./resumen.js";
 import {
-  registrarLogin, cargarHistorialLogins, renderAjustesSocios, agregarCategoriaDesdeAjustes, quitarCategoria,
+  cargarHistorialLogins, renderAjustesSocios, agregarCategoriaDesdeAjustes, quitarCategoria,
   agregarColaboradorDesdeAjustes, quitarColaborador, toggleAdminColaborador, guardarClaveMaestra,
   seleccionarTema, renderAjustesTema, resetLocalConfig
 } from "./ajustes.js";
-import { initFirebase, connectAndBoot, normalizarCategoriasGastos } from "./firebase.js";
+import { initFirebase, connectAndBoot } from "./firebase.js";
+import { renderNegocioCards, switchTab, volverASeccion } from "./navegacion.js";
+import { resumeSession, cambiarUsuario, closePinModal, confirmPinModal, listenSocios, listenConnectivity } from "./sesion.js";
 
 // Segundo paso: el estado compartido entre pantallas (lo que ANTES eran
 // variables `let` sueltas acá arriba) ahora vive en un objeto `state` en
@@ -49,8 +49,8 @@ import { initFirebase, connectAndBoot, normalizarCategoriasGastos } from "./fire
 // en todos lados. Los `const` de config fija se importan sueltos.
 import {
   state,
-  DEFAULT_FIREBASE_CONFIG, LS_CONFIG_KEY, LS_SOCIOS_CACHE, LS_COLAB_CACHE, LS_USER_KEY,
-  NEGOCIOS, CATEGORIAS_GASTOS_DEFAULT, MAX_FOTOS_GASTO
+  DEFAULT_FIREBASE_CONFIG, LS_CONFIG_KEY, LS_SOCIOS_CACHE, LS_COLAB_CACHE,
+  NEGOCIOS, MAX_FOTOS_GASTO
 } from "./state.js";
 
 // ---------- Boot principal (ya configurado) ----------
@@ -77,347 +77,6 @@ function bootApp() {
   listenConnectivity();
   setDefaultFecha();
   resumeSession();
-}
-
-// ---------- Identidad del celular (¿Quién sos? + PIN) ----------
-// Se pregunta una sola vez por celular (como el resto de la config) y se
-// recuerda en localStorage hasta que se use "Cambiar de usuario" en Ajustes.
-// OJO: esto NO es una capa de seguridad real — cualquier dispositivo con la
-// config de Firebase ya puede leer/escribir todo en Firestore. Sirve solo
-// para identificar quién usa cada celular y mostrar los botones de admin.
-function resumeSession() {
-  const savedUser = localStorage.getItem(LS_USER_KEY);
-  if (savedUser && allPagadores().includes(savedUser)) {
-    setUsuarioActual(savedUser);
-    goToNegocioOrHome();
-  } else {
-    renderQuienSosCards();
-    showScreen("screen-quien-sos");
-  }
-}
-
-// Con un solo negocio no tiene sentido pedir que lo elijas — entra directo.
-// Si algún día NEGOCIOS tiene más de uno, vuelve a mostrar el selector solo.
-function goToNegocioOrHome() {
-  if (NEGOCIOS.length === 1) {
-    selectNegocio(NEGOCIOS[0].id);
-  } else {
-    showScreen("screen-negocio");
-  }
-}
-
-function setUsuarioActual(nombre) {
-  state.usuarioActual = nombre;
-  state.esAdmin = state.admins.includes(nombre);
-  localStorage.setItem(LS_USER_KEY, nombre);
-  registrarLogin(nombre);
-  renderAjustesSocios();
-  renderGastos();
-  renderFacturado();
-  renderIdeas();
-}
-
-function cambiarUsuario() {
-  localStorage.removeItem(LS_USER_KEY);
-  state.usuarioActual = null;
-  state.esAdmin = false;
-  renderQuienSosCards();
-  showScreen("screen-quien-sos");
-}
-
-function renderQuienSosCards() {
-  const wrap = $("#quien-sos-cards");
-  wrap.innerHTML = "";
-  allPagadores().forEach((nombre) => {
-    const card = document.createElement("div");
-    card.className = "negocio-card";
-    card.style.setProperty("--biz-color", payerColorVar(nombre));
-    card.innerHTML = `
-      <div class="negocio-emoji">${socioInitial(nombre)}</div>
-      <div class="negocio-info">
-        <div class="negocio-nombre">${escapeHtml(nombre)}</div>
-      </div>
-    `;
-    card.addEventListener("click", () => openPinModal(nombre));
-    wrap.appendChild(card);
-  });
-}
-
-function openPinModal(nombre) {
-  state.pinFlowNombre = nombre;
-  state.pinFlowMode = state.pins[nombre] ? "verify" : "create";
-  $("#pin-input-1").value = "";
-  $("#pin-input-2").value = "";
-  $("#pin-input-clave-maestra").value = "";
-  $("#pin-error").classList.add("hidden");
-
-  // La clave maestra solo se pide la primera vez que un ADMIN crea su PIN
-  // en un celular nuevo — no a colaboradores sin admin, y no de nuevo una
-  // vez que ya tiene PIN (ahí entra por "verify" con su PIN de siempre).
-  // Si no hay clave maestra configurada, no se pide (ver claveMaestraAdmin).
-  const requiereClaveMaestra = state.pinFlowMode === "create" && state.admins.includes(nombre) && !!state.claveMaestraAdmin;
-  $("#pin-field-clave-maestra").classList.toggle("hidden", !requiereClaveMaestra);
-
-  if (state.pinFlowMode === "create") {
-    $("#pin-modal-title").textContent = `Creá tu PIN, ${nombre}`;
-    $("#pin-modal-sub").textContent = "Elegí un PIN de 4 números para identificarte la próxima vez en este celular.";
-    $("#pin-field-2").classList.remove("hidden");
-  } else {
-    $("#pin-modal-title").textContent = "Ingresá tu PIN";
-    $("#pin-modal-sub").textContent = nombre;
-    $("#pin-field-2").classList.add("hidden");
-  }
-
-  $("#modal-pin").classList.add("active");
-  setTimeout(() => $(requiereClaveMaestra ? "#pin-input-clave-maestra" : "#pin-input-1").focus(), 150);
-}
-
-function closePinModal() {
-  $("#modal-pin").classList.remove("active");
-  state.pinFlowNombre = null;
-}
-
-async function confirmPinModal() {
-  const errEl = $("#pin-error");
-  const pin1 = $("#pin-input-1").value.trim();
-  errEl.classList.add("hidden");
-
-  if (!/^\d{4}$/.test(pin1)) {
-    errEl.textContent = "El PIN debe tener 4 números.";
-    errEl.classList.remove("hidden");
-    return;
-  }
-
-  if (state.pinFlowMode === "verify") {
-    if (state.pins[state.pinFlowNombre] !== pin1) {
-      errEl.textContent = "PIN incorrecto.";
-      errEl.classList.remove("hidden");
-      return;
-    }
-    // Ojo: closePinModal() pone pinFlowNombre en null, por eso hay que
-    // guardarlo en una variable local ANTES de llamarla (mismo motivo por
-    // el que el branch "create" ya lo hacía con `const nombre`).
-    const nombre = state.pinFlowNombre;
-    closePinModal();
-    setUsuarioActual(nombre);
-    goToNegocioOrHome();
-    return;
-  }
-
-  // pinFlowMode === "create"
-  const requiereClaveMaestra = state.admins.includes(state.pinFlowNombre) && !!state.claveMaestraAdmin;
-  if (requiereClaveMaestra && $("#pin-input-clave-maestra").value !== state.claveMaestraAdmin) {
-    errEl.textContent = "Clave maestra incorrecta. Pedísela a otro admin.";
-    errEl.classList.remove("hidden");
-    return;
-  }
-
-  const pin2 = $("#pin-input-2").value.trim();
-  if (pin1 !== pin2) {
-    errEl.textContent = "Los PIN no coinciden.";
-    errEl.classList.remove("hidden");
-    return;
-  }
-
-  const btn = $("#btn-pin-confirm");
-  btn.disabled = true;
-  try {
-    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "config", "socios"), {
-      [`pins.${state.pinFlowNombre}`]: pin1
-    });
-    state.pins[state.pinFlowNombre] = pin1;
-    const nombre = state.pinFlowNombre;
-    closePinModal();
-    setUsuarioActual(nombre);
-    goToNegocioOrHome();
-  } catch (e) {
-    console.error(e);
-    errEl.textContent = "No se pudo guardar el PIN. Revisá tu conexión.";
-    errEl.classList.remove("hidden");
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-// ---------- Selector de negocio ----------
-function renderNegocioCards() {
-  const wrap = $("#negocio-cards");
-  wrap.innerHTML = "";
-  NEGOCIOS.forEach(biz => {
-    const card = document.createElement("div");
-    card.className = "negocio-card";
-    card.style.setProperty("--biz-color", biz.color);
-    card.innerHTML = `
-      <div class="negocio-emoji">${biz.emoji}</div>
-      <div class="negocio-info">
-        <div class="negocio-nombre">${escapeHtml(biz.nombre)}</div>
-        <div class="negocio-sub">Ver gastos y facturado</div>
-      </div>
-    `;
-    card.addEventListener("click", () => selectNegocio(biz.id));
-    wrap.appendChild(card);
-  });
-}
-
-function selectNegocio(id) {
-  const biz = NEGOCIOS.find(n => n.id === id);
-  if (!biz) return;
-  state.negocioActual = id;
-
-  // Pantalla "app" (Gastos/Balance/Ajustes) — badge del topbar
-  $("#negocio-titulo").textContent = biz.nombre;
-  $("#negocio-icon-badge").textContent = biz.emoji;
-  $("#negocio-icon-badge").style.background = biz.color;
-
-  // Pantalla "Cierre de Turno" — badge del topbar
-  $("#facturado-titulo").textContent = biz.nombre + " — Cierre de Turno";
-  $("#facturado-icon-badge").textContent = biz.emoji;
-  $("#facturado-icon-badge").style.background = biz.color;
-
-  // Pantalla "Resumen mensual" — badge del topbar
-  $("#resumen-titulo").textContent = biz.nombre + " — Resumen";
-  $("#resumen-icon-badge").textContent = biz.emoji;
-  $("#resumen-icon-badge").style.background = biz.color;
-
-  // Ajustes → tarjeta "Exportar datos"
-  $("#export-negocio-nombre").textContent = biz.nombre;
-
-  renderSeccionCards(biz);
-  showScreen("screen-seccion");
-}
-
-// ---------- Selector de sección (Gastos / Facturado) ----------
-// El título "GESTION FR" y la bajada quedaron fijos en el HTML (sin ícono,
-// para ganar espacio vertical y que entren todas las tarjetas) — ya no
-// dependen de biz.nombre/biz.emoji como el resto de las pantallas.
-function renderSeccionCards(biz) {
-
-  const SECCIONES = [
-    { id: "inversion", emoji: "🏦", nombre: "Inversión Recuperada", sub: "Seguimiento del monto recuperado por Sergio", soloInversion: true },
-    { id: "gastos", emoji: "🧾", nombre: "Gastos", sub: "Cargar gastos y ver el balance entre socios" },
-    { id: "facturado", emoji: "💰", nombre: "Cierre de Turno", sub: "Anotar efectivo y Digital" },
-    { id: "resumen", emoji: "📊", nombre: "Resumen mensual", sub: "Ver los totales de cada mes", soloAdmin: true },
-    { id: "gastosadmin", emoji: "🔒", nombre: "Gastos S/Admin", sub: "Alquiler y otros gastos privados", soloAdmin: true },
-    { id: "ideas", emoji: "💡", nombre: "Caja de IDEAS", sub: "Aportar ideas para mejorar el negocio y el entorno laboral" },
-    { id: "mantenimiento", emoji: "🔨", nombre: "Reportes de Mantenimiento", sub: "Reportar roturas o cosas para arreglar" }
-  ];
-
-  const wrap = $("#seccion-cards");
-  wrap.innerHTML = "";
-  SECCIONES.filter(s => (!s.soloAdmin || state.esAdmin) && (!s.soloInversion || puedeVerInversion())).forEach(s => {
-    const card = document.createElement("div");
-    card.className = "negocio-card";
-    card.style.setProperty("--biz-color", biz.color);
-    card.innerHTML = `
-      <div class="negocio-emoji">${s.emoji}</div>
-      <div class="negocio-info">
-        <div class="negocio-nombre">${s.nombre}</div>
-        <div class="negocio-sub">${s.sub}</div>
-      </div>
-    `;
-    card.addEventListener("click", () => selectSeccion(s.id));
-    wrap.appendChild(card);
-  });
-}
-
-function selectSeccion(id) {
-  state.seccionActual = id;
-  if (id === "gastos") {
-    switchTab("gastos");
-    state.gastosMesOffset = 0; // siempre arranca en el mes actual al entrar
-    renderGastos();
-    renderBalance();
-    showScreen("screen-app");
-  } else if (id === "facturado") {
-    state.facturadoMesOffset = 0; // siempre arranca en el mes actual al entrar
-    renderFacturado();
-    showScreen("screen-facturado");
-  } else if (id === "resumen") {
-    state.resumenMesOffset = 0;
-    renderResumen();
-    showScreen("screen-resumen");
-  } else if (id === "gastosadmin") {
-    state.gastosAdminMesOffset = 0;
-    renderGastosAdmin();
-    showScreen("screen-gastos-admin");
-  } else if (id === "ideas") {
-    renderIdeas();
-    showScreen("screen-ideas");
-  } else if (id === "mantenimiento") {
-    renderReportes();
-    showScreen("screen-mantenimiento");
-  } else if (id === "inversion") {
-    renderInversion();
-    showScreen("screen-inversion");
-  }
-}
-
-function volverASeccion() {
-  const biz = NEGOCIOS.find(n => n.id === state.negocioActual);
-  if (biz) renderSeccionCards(biz);
-  showScreen("screen-seccion");
-}
-
-// Gastos del negocio actualmente seleccionado (de la lista completa que
-// ya sincronizamos con Firestore).
-function listenSocios() {
-  const socioDocRef = state.fbSdk.doc(state.db, "config", "socios");
-  state.fbSdk.onSnapshot(socioDocRef, (snap) => {
-    if (snap.exists() && Array.isArray(snap.data().socios)) {
-      const data = snap.data();
-      state.socios = data.socios;
-      state.colaboradores = Array.isArray(data.colaboradores) ? data.colaboradores : [];
-      state.admins = Array.isArray(data.admins) ? data.admins : [];
-      state.pins = data.pins && typeof data.pins === "object" ? data.pins : {};
-      state.claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
-      if (Array.isArray(data.categoriasGastos)) {
-        state.categoriasGastos = normalizarCategoriasGastos(data.categoriasGastos);
-        if (data.categoriasGastos.some(c => typeof c !== "string")) {
-          // Quedó guardado en el formato viejo {nombre, soloAdmin} — se
-          // reescribe ya corregido para que no vuelva a pasar.
-          state.fbSdk.updateDoc(socioDocRef, { categoriasGastos: state.categoriasGastos }).catch(() => {});
-        }
-      } else if (!state.categoriasGastosSembrado) {
-        // Instalación de antes de que existiera este campo — se siembra una
-        // sola vez con el default, para que quede persistido en Firestore.
-        state.categoriasGastosSembrado = true;
-        state.categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
-        state.fbSdk.updateDoc(socioDocRef, { categoriasGastos: state.categoriasGastos }).catch(() => {});
-      }
-      localStorage.setItem(LS_SOCIOS_CACHE, JSON.stringify(state.socios));
-      localStorage.setItem(LS_COLAB_CACHE, JSON.stringify(state.colaboradores));
-      state.esAdmin = state.usuarioActual ? state.admins.includes(state.usuarioActual) : false;
-      renderPagadorChips();
-      renderPagadorChipsFacturado();
-      renderAjustesSocios();
-      renderBalance();
-      renderGastos();
-      renderGastosAdmin();
-      renderFacturado();
-      renderIdeas();
-    }
-  });
-}
-
-function listenConnectivity() {
-  const update = () => setSyncOffline(!navigator.onLine);
-  window.addEventListener("online", update);
-  window.addEventListener("offline", update);
-  update();
-}
-
-// ---------- Tabs ----------
-// OJO: el selector de acá adentro está limitado a #screen-app a propósito.
-// Las pantallas de Facturado / Resumen / Fotos guardadas también usan la
-// clase .tab (para heredar el mismo estilo de scroll/padding) pero no son
-// parte de este tabbar — si se les sacara "active" con un $$(".tab") global,
-// quedarían en blanco la primera vez que se toque cualquier pestaña.
-function switchTab(name) {
-  $("#screen-app").querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  $$(".tabbtn").forEach(b => b.classList.remove("active"));
-  $("#tab-" + name).classList.add("active");
-  $(`.tabbtn[data-tab="${name}"]`).classList.add("active");
-  $("#fab-add").classList.toggle("hidden", name !== "gastos");
 }
 
 // ---------- Setup screen ----------
