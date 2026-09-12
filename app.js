@@ -10,16 +10,18 @@ import {
   money, parseMoneyInput, formatMoneyValue, formatMoneyInputMientrasTipea, wireMoneyInput,
   MESES, mesLabel, fechaDeRegistro, fechaLocalISO, fechaLimiteHistorial,
   TURNOS, TURNO_LABEL, turnoLabelParaFecha, turnoActual, turnoVencimiento, turnosDelMes, fechaParaTurno,
-  socioColorVar, colorDesdeNombre, socioInitial,
+  socioColorVar, socioInitial,
   escapeHtml, csvEscape, downloadCSV, conTimeout, compressImage, parseFirebaseConfig,
   setSyncOffline
 } from "./utils.js";
 
 // Tercer paso: separar cada pantalla en su propio módulo — arrancando por
-// las más chicas/autocontenidas (Ideas, Reportes) para probar el patrón
-// antes de mover pantallas más grandes (Gastos, Facturado).
+// las más chicas/autocontenidas (Ideas, Reportes, Inversión) para probar
+// el patrón antes de mover pantallas más grandes (Gastos, Facturado).
 import { listenIdeas, renderIdeas, toggleVoto, toggleIdeaEstado, deleteIdea, openModalIdea, closeModalIdea, saveIdea } from "./ideas.js";
 import { listenReportes, renderReportes, toggleVotoReporte, toggleReporteEstado, deleteReporte, openModalReporte, closeModalReporte, saveReporte } from "./reportes.js";
+import { allPagadores, payerColorVar, puedeVerInversion } from "./identidad.js";
+import { listenInversion, renderInversion, openModalInversion, closeModalInversion, saveInversion, deleteInversion } from "./inversion.js";
 
 // Segundo paso: el estado compartido entre pantallas (lo que ANTES eran
 // variables `let` sueltas acá arriba) ahora vive en un objeto `state` en
@@ -29,7 +31,7 @@ import { listenReportes, renderReportes, toggleVotoReporte, toggleReporteEstado,
 import {
   state,
   DEFAULT_FIREBASE_CONFIG, LS_CONFIG_KEY, LS_SOCIOS_CACHE, LS_COLAB_CACHE, LS_USER_KEY, LS_THEME_KEY,
-  NEUTRAL_VAR, NEGOCIOS, INVERSION_META, CATEGORIAS_GASTOS_DEFAULT, MAX_FOTOS_GASTO, FOTO_RETENCION_DIAS
+  NEGOCIOS, CATEGORIAS_GASTOS_DEFAULT, MAX_FOTOS_GASTO, FOTO_RETENCION_DIAS
 } from "./state.js";
 
 // El SDK de Firebase se importa de forma DINÁMICA (recién cuando hace
@@ -96,36 +98,6 @@ function normalizarCategoriasGastos(raw) {
   return raw
     .map(c => typeof c === "string" ? c : (c && typeof c.nombre === "string" ? c.nombre : null))
     .filter(Boolean);
-}
-
-// Color de identidad para cualquier "pagador": el dueño tiene su color
-// categórico propio (el de siempre); cada colaborador tiene su propio
-// color estable derivado de su nombre, para distinguirlos a simple vista
-// igual que al dueño.
-function payerColorVar(name) {
-  const idx = state.socios.indexOf(name);
-  if (idx !== -1) return socioColorVar(idx);
-  if (state.colaboradores.indexOf(name) !== -1) return colorDesdeNombre(name);
-  return NEUTRAL_VAR;
-}
-
-function allPagadores() {
-  return state.socios.concat(state.colaboradores);
-}
-
-// "Inversión Recuperada": pantalla de uso exclusivo para el inversor.
-// Solo Sergio y Pola pueden ENTRAR (puedeVerInversion controla si aparece
-// la tarjeta en screen-seccion); de esos dos, solo Sergio puede CARGAR
-// actualizaciones y borrar (puedeCargarInversion controla el botón + y el
-// 🗑️ del historial) — Pola solo mira. Comparación directa por nombre,
-// mismo patrón que "esSergio" en renderAjustesSocios (ver historial de
-// logeos) — no depende de esAdmin porque un colaborador podría llegar a
-// ser admin (ver admin-toggle-btn) sin que eso deba darle acceso acá.
-function puedeVerInversion() {
-  return state.usuarioActual === "Sergio" || state.usuarioActual === "Pola";
-}
-function puedeCargarInversion() {
-  return state.usuarioActual === "Sergio";
 }
 
 // ---------- Firebase init ----------
@@ -637,23 +609,6 @@ function listenFacturacion() {
   });
 }
 
-// Misma mecánica que Ideas (ver listenIdeas), colección aparte "inversion".
-// Se sincroniza para cualquiera igual que el resto de las colecciones (ver
-// README: no hay reglas de Firestore reales) — lo que restringe el acceso
-// es solo que la tarjeta/pantalla no aparecen salvo para Sergio y Pola
-// (ver puedeVerInversion).
-function listenInversion() {
-  const q = state.fbSdk.query(state.fbSdk.collection(state.db, "inversion"), state.fbSdk.orderBy("creadoEn", "desc"));
-  state.fbSdk.onSnapshot(q, (snapshot) => {
-    state.inversiones = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderInversion();
-    setSyncOffline(false);
-  }, (err) => {
-    console.error(err);
-    setSyncOffline(true);
-  });
-}
-
 function listenConnectivity() {
   const update = () => setSyncOffline(!navigator.onLine);
   window.addEventListener("online", update);
@@ -1080,110 +1035,6 @@ function renderFacturado() {
   $("#facturado-total-mes").textContent = money(totalMes);
   $("#facturado-total-hoy").textContent = money(totalHoy);
   $("#facturado-turnos-hoy").textContent = `${turnosHoy.size} de ${TURNOS.length} turnos cargados`;
-}
-
-
-// ---------- Render: Inversión Recuperada ----------
-// Cada doc de "inversion" guarda el TOTAL acumulado a esa fecha (no un
-// incremento) — por eso "lo recuperado hasta ahora" es simplemente el
-// monto del último doc (los más nuevos van primero, ver listenInversion).
-function inversionActual() {
-  return state.inversiones.length ? (Number(state.inversiones[0].monto) || 0) : 0;
-}
-
-// Pedido puntual de Sergio para esta pantalla: mostrar "Millones" al lado
-// de cada monto (ej. "$27.000.000 Millones") — es solo un sufijo de texto
-// sobre lo que ya arma money(), no una conversión de unidades.
-function moneyMillones(n) {
-  return money(n) + " Millones";
-}
-
-function renderInversion() {
-  const actual = inversionActual();
-  $("#inversion-actual").textContent = moneyMillones(actual);
-  $("#inversion-meta-sub").textContent = `de ${moneyMillones(INVERSION_META)} a recuperar`;
-  const pct = INVERSION_META ? Math.min(100, Math.round((actual / INVERSION_META) * 100)) : 0;
-  $("#inversion-bar").style.width = pct + "%";
-
-  $("#fab-add-inversion").classList.toggle("hidden", !puedeCargarInversion());
-
-  const list = $("#inversion-list");
-  const empty = $("#inversion-empty");
-  list.innerHTML = "";
-  empty.classList.toggle("hidden", state.inversiones.length > 0);
-
-  state.inversiones.forEach(inv => {
-    const fecha = fechaDeRegistro(inv);
-    const deleteBtn = puedeCargarInversion()
-      ? `<button type="button" class="icon-btn danger inversion-delete-btn" data-id="${inv.id}" aria-label="Borrar esta actualización">🗑️</button>`
-      : "";
-    const li = document.createElement("li");
-    li.className = "expense-item";
-    li.innerHTML = `
-      <div class="expense-item-top">
-        <div class="avatar" style="background:${payerColorVar(inv.registradoPor)}">${socioInitial(inv.registradoPor)}</div>
-        <div class="info">
-          <div class="desc">${escapeHtml(inv.registradoPor || "?")} recuperó ${moneyMillones(inv.monto)}</div>
-          <div class="meta">${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })} · ${fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</div>
-        </div>
-      </div>
-      ${deleteBtn ? `<div class="expense-item-actions">${deleteBtn}</div>` : ""}
-    `;
-    list.appendChild(li);
-  });
-}
-
-function openModalInversion() {
-  $("#input-monto-inversion").value = "";
-  $("#modal-inversion-error").classList.add("hidden");
-  $("#modal-add-inversion").classList.add("active");
-  setTimeout(() => $("#input-monto-inversion").focus(), 150);
-}
-
-function closeModalInversion() {
-  $("#modal-add-inversion").classList.remove("active");
-}
-
-async function saveInversion() {
-  const monto = parseMoneyInput($("#input-monto-inversion").value);
-  const errEl = $("#modal-inversion-error");
-  if (!Number.isFinite(monto) || monto < 0) {
-    errEl.textContent = "Ingresá un monto válido.";
-    errEl.classList.remove("hidden");
-    return;
-  }
-
-  const btn = $("#btn-save-inversion");
-  btn.disabled = true;
-  btn.textContent = "Guardando…";
-  try {
-    await state.fbSdk.addDoc(state.fbSdk.collection(state.db, "inversion"), {
-      monto,
-      registradoPor: state.usuarioActual,
-      creadoEn: state.fbSdk.serverTimestamp()
-    });
-    closeModalInversion();
-    showToast("Actualización guardada ✅");
-  } catch (e) {
-    errEl.textContent = "No se pudo guardar. Revisá tu conexión.";
-    errEl.classList.remove("hidden");
-    console.error(e);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Guardar";
-  }
-}
-
-// Solo Sergio (puedeCargarInversion) — ver botón 🗑️ en renderInversion().
-async function deleteInversion(id) {
-  if (!confirm("¿Borrar esta actualización del historial?")) return;
-  try {
-    await state.fbSdk.deleteDoc(state.fbSdk.doc(state.db, "inversion", id));
-    showToast("Actualización borrada");
-  } catch (e) {
-    console.error(e);
-    showToast("No se pudo borrar. Revisá tu conexión.");
-  }
 }
 
 // ---------- Render: Resumen mensual ----------
