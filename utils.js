@@ -215,6 +215,14 @@ export function socioInitial(name) {
   return (name || "?").trim().charAt(0).toUpperCase();
 }
 
+export function setSyncOffline(isOffline) {
+  $$(".sync-dot").forEach(d => d.classList.toggle("offline", isOffline));
+}
+
+export function votosDe(idea) {
+  return Array.isArray(idea.votos) ? idea.votos : [];
+}
+
 // ---------- Otros ----------
 // Todo texto que viene de Firestore (descripción, nombres) pasa por acá antes
 // de insertarse con innerHTML, para evitar XSS. Cualquier campo de texto
