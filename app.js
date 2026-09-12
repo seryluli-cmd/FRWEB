@@ -14,14 +14,24 @@ import {
   escapeHtml, csvEscape, downloadCSV, conTimeout, compressImage, parseFirebaseConfig
 } from "./utils.js";
 
+// Segundo paso: el estado compartido entre pantallas (lo que ANTES eran
+// variables `let` sueltas acá arriba) ahora vive en un objeto `state` en
+// state.js — un módulo no puede reasignar una variable importada de otro
+// archivo, así que en vez de `gastos = [...]` es `state.gastos = [...]`
+// en todos lados. Los `const` de config fija se importan sueltos.
+import {
+  state,
+  DEFAULT_FIREBASE_CONFIG, LS_CONFIG_KEY, LS_SOCIOS_CACHE, LS_COLAB_CACHE, LS_USER_KEY, LS_THEME_KEY,
+  NEUTRAL_VAR, NEGOCIOS, INVERSION_META, CATEGORIAS_GASTOS_DEFAULT, MAX_FOTOS_GASTO, FOTO_RETENCION_DIAS
+} from "./state.js";
+
 // El SDK de Firebase se importa de forma DINÁMICA (recién cuando hace
 // falta conectar) para que la app nunca quede colgada en "Cargando…"
 // si la red está lenta o falla al abrir la app.
 const FB_VERSION = "10.12.2";
-let fbSdk = null; // { initializeApp, getAuth, signInAnonymously, onAuthStateChanged, getFirestore, ... }
 
 async function loadFirebaseSdk() {
-  if (fbSdk) return fbSdk;
+  if (state.fbSdk) return state.fbSdk;
   let appMod, authMod, fsMod, stMod;
   try {
     [appMod, authMod, fsMod, stMod] = await Promise.all([
@@ -34,7 +44,7 @@ async function loadFirebaseSdk() {
     console.error("Error cargando SDK de Firebase:", e);
     throw new Error("No se pudo conectar a internet para cargar Firebase. Revisá tu conexión e intentá de nuevo.");
   }
-  fbSdk = {
+  state.fbSdk = {
     initializeApp: appMod.initializeApp,
     getApps: appMod.getApps,
     deleteApp: appMod.deleteApp,
@@ -66,57 +76,8 @@ async function loadFirebaseSdk() {
     getDownloadURL: stMod.getDownloadURL,
     deleteObject: stMod.deleteObject
   };
-  return fbSdk;
+  return state.fbSdk;
 }
-
-// ---------- Estado ----------
-// Config de Firebase de este negocio (proyecto "frkioskos") — es la misma
-// para todos los dispositivos (vos, Pola, colaboradores), así que viene
-// incluida de una vez y nadie tiene que pegarla a mano en el primer
-// inicio (ver attemptReconnect). Si algún día hace falta cambiar de
-// proyecto, alcanza con reemplazar este objeto.
-const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBE5i2QK0HD2bKQ-ctfYycam9QC_McmxNs",
-  authDomain: "frkioskos.firebaseapp.com",
-  projectId: "frkioskos",
-  storageBucket: "frkioskos.firebasestorage.app",
-  messagingSenderId: "493900046824",
-  appId: "1:493900046824:web:c007a2e4577e8e4b06c45d"
-};
-const LS_CONFIG_KEY = "gn_firebaseConfig";
-const LS_SOCIOS_CACHE = "gn_socios_cache";
-const LS_COLAB_CACHE = "gn_colaboradores_cache";
-const LS_USER_KEY = "gn_current_user"; // quién está identificado en este celular
-const LS_THEME_KEY = "gn_theme"; // "auto" (default, sigue el sistema) | "light" | "dark"
-const NEUTRAL_VAR = "var(--text-muted)";
-
-// Un solo negocio acá. Si algún día se suma un segundo negocio, alcanza con
-// agregar otro objeto acá — el resto del código ya soporta N negocios; lo
-// único que cambia es que goToNegocioOrHome() deja de saltear la pantalla
-// de elegir negocio en cuanto el array tiene más de un elemento.
-const NEGOCIOS = [
-  { id: "gestionfr", nombre: "Gestion FR", emoji: "⌨️", color: "var(--series-1)" }
-];
-
-// Cifra fija que pidió Sergio (el inversor) para "Inversión Recuperada" —
-// el total a recuperar del negocio. No hay pantalla para editarla porque
-// es un dato del acuerdo, no algo que cambie desde la operación diaria.
-const INVERSION_META = 55000000;
-
-// Categorías de gasto: lista editable por los admin desde Ajustes →
-// "Categorías de gastos" (ver renderAjustesCategorias) — simples nombres,
-// sin ninguna noción de privacidad acá (eso ahora es por gasto individual,
-// ver `soloAdmin` en el gasto más abajo, no en la categoría). Se guardan
-// en Firestore (config/socios, campo categoriasGastos) para que los admin
-// puedan crear/borrar una categoría sin tocar código — ver listenSocios().
-// CATEGORIAS_GASTOS_DEFAULT es la semilla para instalaciones viejas que
-// todavía no tienen ese campo.
-const CATEGORIAS_GASTOS_DEFAULT = [
-  "Kiosko", "Bebidas", "Panchos", "Art Limpieza", "Servicios",
-  "Alquiler", "Mantenimiento Gral", "Sueldos", "Otros"
-];
-let categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
-let categoriasGastosSembrado = false; // evita reescribir el default más de una vez por sesión
 
 // Convierte categorías del formato viejo {nombre, soloAdmin} (privacidad
 // por categoría, commit 3273b8c, reemplazado horas después por el checkbox
@@ -130,60 +91,19 @@ function normalizarCategoriasGastos(raw) {
     .filter(Boolean);
 }
 
-let fbApp = null, auth = null, db = null, storage = null;
-const MAX_FOTOS_GASTO = 5; // una factura de varias hojas puede necesitar más de una foto — ver fotosDeGasto()
-let fotosGastoModal = []; // fotos del gasto que se está cargando/editando, en el orden del modal — cada una { tipo:"existente", url, path } (ya estaba guardada) o { tipo:"nueva", blob, previewUrl } (recién elegida, falta subir)
-let fotosGastoABorrar = []; // paths de Storage de fotos existentes que se sacaron en este modal — se borran recién si se confirma "Guardar" (cancelar el modal no borra nada)
-let selectedFotoFacturadoBlob = null; // foto comprimida, lista para subir (modal de Cierre de Turno — sigue siendo una sola, no forma parte de este cambio)
-const FOTO_RETENCION_DIAS = 120; // ~4 meses — pasado esto, se borra sola la foto (no el gasto)
-
-let fotosLimpiezaHecha = false;
-let socios = [];           // ["Sergio"] — el/los dueño(s), entran en el reparto (acá siempre 1)
-let colaboradores = [];    // ["Encargada"] — pueden pagar/cargar, NO entran en el reparto
-let admins = [];           // subconjunto de nombres (normalmente socios) con permiso para editar/borrar
-let pins = {};             // { "Sergio": "1234", ... } — PIN fijo de 4 dígitos por persona (ver README: no es seguridad real, solo identificación)
-let claveMaestraAdmin = ""; // clave compartida entre los admins, solo para CREAR su PIN la primera vez
-                             // en un celular nuevo (ver openPinModal/confirmPinModal) — evita que cualquiera
-                             // tocando el nombre de un admin por primera vez se autoasigne ese PIN sin saberla.
-                             // Si no está configurada (vacía), no se pide — no es seguridad real, ver README.
-let gastos = [];           // TODOS los gastos — [{id, importe, descripcion, categoria, pagadoPor, fecha, negocio}]
-let facturaciones = [];    // TODOS los cierres diarios — [{id, importe, registradoPor, fecha, negocio}]
-let ideas = [];            // Ideas de mejora — [{id, texto, estado, propuestoPor, creadoEn}]
-let reportes = [];         // Reportes de mantenimiento — [{id, texto, estado, propuestoPor, votos, creadoEn}]
-let inversiones = [];      // Historial de "Inversión Recuperada" — [{id, monto, registradoPor, creadoEn}]. `monto` es el TOTAL acumulado a esa fecha, no un incremento.
-let negocioActual = null;  // "gestionfr" (siempre — acá hay un solo negocio)
-let seccionActual = null;  // "gastos" | "facturado" | "resumen"
-let selectedPagador = null;
-let selectedRegistrador = null;
-let selectedTurno = null; // "mañana" | "tarde" | "noche" — turno del cierre que se está cargando
-
-let resumenMesOffset = 0;  // 0 = mes actual, -1 = mes anterior, etc. (Resumen mensual)
-let gastosMesOffset = 0;   // ídem, para la pantalla de Gastos — se reinicia a 0 cada vez que se entra
-let facturadoMesOffset = 0; // ídem, para la pantalla de Facturado/Cierre de turno
-let gastosAdminMesOffset = 0; // ídem, para la pantalla de Gastos S/Admin
-let pendingFirebaseConfig = null; // config guardada entre el paso 1 y 2 del setup inicial
-let usuarioActual = null;  // nombre con el que se identificó este celular (ver resumeSession)
-let esAdmin = false;       // usuarioActual ∈ admins
-let editingGastoId = null;      // id del gasto que se está editando en el modal, o null si es uno nuevo
-let selectedFormaPago = "efectivo"; // "efectivo" | "digital" | "mixto" — elegido en el modal de gasto
-let mixtoUltimoEditado = null;  // "efectivo" | "digital" | null — cuál de los 2 campos del desglose se tipeó a mano por última vez (el otro se recalcula solo)
-let editingCierreId = null;     // id del cierre que se está editando en el modal, o null si es uno nuevo
-let pinFlowNombre = null;  // nombre para el que está abierto el modal de PIN
-let pinFlowMode = null;    // "create" (todavía no tiene PIN) | "verify" (ya tiene uno)
-
 // Color de identidad para cualquier "pagador": el dueño tiene su color
 // categórico propio (el de siempre); cada colaborador tiene su propio
 // color estable derivado de su nombre, para distinguirlos a simple vista
 // igual que al dueño.
 function payerColorVar(name) {
-  const idx = socios.indexOf(name);
+  const idx = state.socios.indexOf(name);
   if (idx !== -1) return socioColorVar(idx);
-  if (colaboradores.indexOf(name) !== -1) return colorDesdeNombre(name);
+  if (state.colaboradores.indexOf(name) !== -1) return colorDesdeNombre(name);
   return NEUTRAL_VAR;
 }
 
 function allPagadores() {
-  return socios.concat(colaboradores);
+  return state.socios.concat(state.colaboradores);
 }
 
 // "Inversión Recuperada": pantalla de uso exclusivo para el inversor.
@@ -195,10 +115,10 @@ function allPagadores() {
 // logeos) — no depende de esAdmin porque un colaborador podría llegar a
 // ser admin (ver admin-toggle-btn) sin que eso deba darle acceso acá.
 function puedeVerInversion() {
-  return usuarioActual === "Sergio" || usuarioActual === "Pola";
+  return state.usuarioActual === "Sergio" || state.usuarioActual === "Pola";
 }
 function puedeCargarInversion() {
-  return usuarioActual === "Sergio";
+  return state.usuarioActual === "Sergio";
 }
 
 // ---------- Firebase init ----------
@@ -213,19 +133,19 @@ async function initFirebase(config) {
     await Promise.all(existing.map(a => sdk.deleteApp(a).catch(() => {})));
   }
 
-  fbApp = sdk.initializeApp(config);
-  auth = sdk.getAuth(fbApp);
-  db = sdk.getFirestore(fbApp);
-  storage = sdk.getStorage(fbApp);
+  state.fbApp = sdk.initializeApp(config);
+  state.auth = sdk.getAuth(state.fbApp);
+  state.db = sdk.getFirestore(state.fbApp);
+  state.storage = sdk.getStorage(state.fbApp);
   try {
-    await sdk.enableIndexedDbPersistence(db);
+    await sdk.enableIndexedDbPersistence(state.db);
   } catch (e) {
     // persistence puede fallar en pestañas múltiples o navegadores viejos; no es crítico
     console.warn("Persistencia offline no disponible:", e.message);
   }
   await new Promise((resolve, reject) => {
-    sdk.signInAnonymously(auth).catch(reject);
-    sdk.onAuthStateChanged(auth, (user) => {
+    sdk.signInAnonymously(state.auth).catch(reject);
+    sdk.onAuthStateChanged(state.auth, (user) => {
       if (user) resolve(user);
     });
   });
@@ -233,49 +153,49 @@ async function initFirebase(config) {
 
 async function connectAndBoot(config, namesFromInput, colabFromInput) {
   await initFirebase(config);
-  const sdk = fbSdk;
+  const sdk = state.fbSdk;
 
-  const socioDocRef = sdk.doc(db, "config", "socios");
+  const socioDocRef = sdk.doc(state.db, "config", "socios");
   const snap = await sdk.getDoc(socioDocRef);
 
   if (snap.exists() && Array.isArray(snap.data().socios) && snap.data().socios.length > 0) {
     const data = snap.data();
-    socios = data.socios;
-    colaboradores = Array.isArray(data.colaboradores) ? data.colaboradores : [];
-    admins = Array.isArray(data.admins) ? data.admins : [];
-    pins = data.pins && typeof data.pins === "object" ? data.pins : {};
-    claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
+    state.socios = data.socios;
+    state.colaboradores = Array.isArray(data.colaboradores) ? data.colaboradores : [];
+    state.admins = Array.isArray(data.admins) ? data.admins : [];
+    state.pins = data.pins && typeof data.pins === "object" ? data.pins : {};
+    state.claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
     if (Array.isArray(data.categoriasGastos)) {
-      categoriasGastos = normalizarCategoriasGastos(data.categoriasGastos);
+      state.categoriasGastos = normalizarCategoriasGastos(data.categoriasGastos);
       if (data.categoriasGastos.some(c => typeof c !== "string")) {
         // Quedó guardado en el formato viejo {nombre, soloAdmin} — se
         // reescribe ya corregido para que no vuelva a pasar.
-        await sdk.updateDoc(socioDocRef, { categoriasGastos }).catch(() => {});
+        await sdk.updateDoc(socioDocRef, { categoriasGastos: state.categoriasGastos }).catch(() => {});
       }
     } else {
       // Instalación de antes de que existiera este campo — se siembra una
       // sola vez con el default, para que quede persistido en Firestore.
-      categoriasGastosSembrado = true;
-      categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
-      await sdk.updateDoc(socioDocRef, { categoriasGastos }).catch(() => {});
+      state.categoriasGastosSembrado = true;
+      state.categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
+      await sdk.updateDoc(socioDocRef, { categoriasGastos: state.categoriasGastos }).catch(() => {});
     }
   } else {
     if (!namesFromInput || namesFromInput.some(n => !n.trim())) {
       throw new Error("Completá tu nombre.");
     }
-    socios = namesFromInput.map(n => n.trim());
-    colaboradores = (colabFromInput || []).map(n => n.trim()).filter(Boolean);
-    admins = [];
-    pins = {};
-    claveMaestraAdmin = "llavez";
-    categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
-    categoriasGastosSembrado = true;
-    await sdk.setDoc(socioDocRef, { socios, colaboradores, admins, pins, claveMaestraAdmin, categoriasGastos });
+    state.socios = namesFromInput.map(n => n.trim());
+    state.colaboradores = (colabFromInput || []).map(n => n.trim()).filter(Boolean);
+    state.admins = [];
+    state.pins = {};
+    state.claveMaestraAdmin = "llavez";
+    state.categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
+    state.categoriasGastosSembrado = true;
+    await sdk.setDoc(socioDocRef, { socios: state.socios, colaboradores: state.colaboradores, admins: state.admins, pins: state.pins, claveMaestraAdmin: state.claveMaestraAdmin, categoriasGastos: state.categoriasGastos });
   }
 
   localStorage.setItem(LS_CONFIG_KEY, JSON.stringify(config));
-  localStorage.setItem(LS_SOCIOS_CACHE, JSON.stringify(socios));
-  localStorage.setItem(LS_COLAB_CACHE, JSON.stringify(colaboradores));
+  localStorage.setItem(LS_SOCIOS_CACHE, JSON.stringify(state.socios));
+  localStorage.setItem(LS_COLAB_CACHE, JSON.stringify(state.colaboradores));
 
   bootApp();
 }
@@ -329,8 +249,8 @@ function goToNegocioOrHome() {
 }
 
 function setUsuarioActual(nombre) {
-  usuarioActual = nombre;
-  esAdmin = admins.includes(nombre);
+  state.usuarioActual = nombre;
+  state.esAdmin = state.admins.includes(nombre);
   localStorage.setItem(LS_USER_KEY, nombre);
   registrarLogin(nombre);
   renderAjustesSocios();
@@ -349,7 +269,7 @@ function setUsuarioActual(nombre) {
 // mostrar un simple conteo.
 async function registrarLogin(nombre) {
   try {
-    await fbSdk.setDoc(fbSdk.doc(db, "logins", nombre), { veces: fbSdk.increment(1) }, { merge: true });
+    await state.fbSdk.setDoc(state.fbSdk.doc(state.db, "logins", nombre), { veces: state.fbSdk.increment(1) }, { merge: true });
   } catch (e) {
     console.error("No se pudo registrar el logeo:", e);
   }
@@ -360,7 +280,7 @@ async function cargarHistorialLogins() {
   const empty = $("#historial-logins-empty");
   wrap.innerHTML = "";
   try {
-    const snap = await fbSdk.getDocs(fbSdk.collection(db, "logins"));
+    const snap = await state.fbSdk.getDocs(state.fbSdk.collection(state.db, "logins"));
     const filas = [];
     snap.forEach(d => filas.push({ nombre: d.id, veces: d.data().veces || 0 }));
     filas.sort((a, b) => b.veces - a.veces);
@@ -381,8 +301,8 @@ async function cargarHistorialLogins() {
 
 function cambiarUsuario() {
   localStorage.removeItem(LS_USER_KEY);
-  usuarioActual = null;
-  esAdmin = false;
+  state.usuarioActual = null;
+  state.esAdmin = false;
   renderQuienSosCards();
   showScreen("screen-quien-sos");
 }
@@ -406,8 +326,8 @@ function renderQuienSosCards() {
 }
 
 function openPinModal(nombre) {
-  pinFlowNombre = nombre;
-  pinFlowMode = pins[nombre] ? "verify" : "create";
+  state.pinFlowNombre = nombre;
+  state.pinFlowMode = state.pins[nombre] ? "verify" : "create";
   $("#pin-input-1").value = "";
   $("#pin-input-2").value = "";
   $("#pin-input-clave-maestra").value = "";
@@ -417,10 +337,10 @@ function openPinModal(nombre) {
   // en un celular nuevo — no a colaboradores sin admin, y no de nuevo una
   // vez que ya tiene PIN (ahí entra por "verify" con su PIN de siempre).
   // Si no hay clave maestra configurada, no se pide (ver claveMaestraAdmin).
-  const requiereClaveMaestra = pinFlowMode === "create" && admins.includes(nombre) && !!claveMaestraAdmin;
+  const requiereClaveMaestra = state.pinFlowMode === "create" && state.admins.includes(nombre) && !!state.claveMaestraAdmin;
   $("#pin-field-clave-maestra").classList.toggle("hidden", !requiereClaveMaestra);
 
-  if (pinFlowMode === "create") {
+  if (state.pinFlowMode === "create") {
     $("#pin-modal-title").textContent = `Creá tu PIN, ${nombre}`;
     $("#pin-modal-sub").textContent = "Elegí un PIN de 4 números para identificarte la próxima vez en este celular.";
     $("#pin-field-2").classList.remove("hidden");
@@ -436,7 +356,7 @@ function openPinModal(nombre) {
 
 function closePinModal() {
   $("#modal-pin").classList.remove("active");
-  pinFlowNombre = null;
+  state.pinFlowNombre = null;
 }
 
 async function confirmPinModal() {
@@ -450,8 +370,8 @@ async function confirmPinModal() {
     return;
   }
 
-  if (pinFlowMode === "verify") {
-    if (pins[pinFlowNombre] !== pin1) {
+  if (state.pinFlowMode === "verify") {
+    if (state.pins[state.pinFlowNombre] !== pin1) {
       errEl.textContent = "PIN incorrecto.";
       errEl.classList.remove("hidden");
       return;
@@ -459,7 +379,7 @@ async function confirmPinModal() {
     // Ojo: closePinModal() pone pinFlowNombre en null, por eso hay que
     // guardarlo en una variable local ANTES de llamarla (mismo motivo por
     // el que el branch "create" ya lo hacía con `const nombre`).
-    const nombre = pinFlowNombre;
+    const nombre = state.pinFlowNombre;
     closePinModal();
     setUsuarioActual(nombre);
     goToNegocioOrHome();
@@ -467,8 +387,8 @@ async function confirmPinModal() {
   }
 
   // pinFlowMode === "create"
-  const requiereClaveMaestra = admins.includes(pinFlowNombre) && !!claveMaestraAdmin;
-  if (requiereClaveMaestra && $("#pin-input-clave-maestra").value !== claveMaestraAdmin) {
+  const requiereClaveMaestra = state.admins.includes(state.pinFlowNombre) && !!state.claveMaestraAdmin;
+  if (requiereClaveMaestra && $("#pin-input-clave-maestra").value !== state.claveMaestraAdmin) {
     errEl.textContent = "Clave maestra incorrecta. Pedísela a otro admin.";
     errEl.classList.remove("hidden");
     return;
@@ -484,11 +404,11 @@ async function confirmPinModal() {
   const btn = $("#btn-pin-confirm");
   btn.disabled = true;
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), {
-      [`pins.${pinFlowNombre}`]: pin1
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "config", "socios"), {
+      [`pins.${state.pinFlowNombre}`]: pin1
     });
-    pins[pinFlowNombre] = pin1;
-    const nombre = pinFlowNombre;
+    state.pins[state.pinFlowNombre] = pin1;
+    const nombre = state.pinFlowNombre;
     closePinModal();
     setUsuarioActual(nombre);
     goToNegocioOrHome();
@@ -524,7 +444,7 @@ function renderNegocioCards() {
 function selectNegocio(id) {
   const biz = NEGOCIOS.find(n => n.id === id);
   if (!biz) return;
-  negocioActual = id;
+  state.negocioActual = id;
 
   // Pantalla "app" (Gastos/Balance/Ajustes) — badge del topbar
   $("#negocio-titulo").textContent = biz.nombre;
@@ -566,7 +486,7 @@ function renderSeccionCards(biz) {
 
   const wrap = $("#seccion-cards");
   wrap.innerHTML = "";
-  SECCIONES.filter(s => (!s.soloAdmin || esAdmin) && (!s.soloInversion || puedeVerInversion())).forEach(s => {
+  SECCIONES.filter(s => (!s.soloAdmin || state.esAdmin) && (!s.soloInversion || puedeVerInversion())).forEach(s => {
     const card = document.createElement("div");
     card.className = "negocio-card";
     card.style.setProperty("--biz-color", biz.color);
@@ -583,23 +503,23 @@ function renderSeccionCards(biz) {
 }
 
 function selectSeccion(id) {
-  seccionActual = id;
+  state.seccionActual = id;
   if (id === "gastos") {
     switchTab("gastos");
-    gastosMesOffset = 0; // siempre arranca en el mes actual al entrar
+    state.gastosMesOffset = 0; // siempre arranca en el mes actual al entrar
     renderGastos();
     renderBalance();
     showScreen("screen-app");
   } else if (id === "facturado") {
-    facturadoMesOffset = 0; // siempre arranca en el mes actual al entrar
+    state.facturadoMesOffset = 0; // siempre arranca en el mes actual al entrar
     renderFacturado();
     showScreen("screen-facturado");
   } else if (id === "resumen") {
-    resumenMesOffset = 0;
+    state.resumenMesOffset = 0;
     renderResumen();
     showScreen("screen-resumen");
   } else if (id === "gastosadmin") {
-    gastosAdminMesOffset = 0;
+    state.gastosAdminMesOffset = 0;
     renderGastosAdmin();
     showScreen("screen-gastos-admin");
   } else if (id === "ideas") {
@@ -615,7 +535,7 @@ function selectSeccion(id) {
 }
 
 function volverASeccion() {
-  const biz = NEGOCIOS.find(n => n.id === negocioActual);
+  const biz = NEGOCIOS.find(n => n.id === state.negocioActual);
   if (biz) renderSeccionCards(biz);
   showScreen("screen-seccion");
 }
@@ -623,41 +543,41 @@ function volverASeccion() {
 // Gastos del negocio actualmente seleccionado (de la lista completa que
 // ya sincronizamos con Firestore).
 function gastosDelNegocio() {
-  return gastos.filter(g => g.negocio === negocioActual);
+  return state.gastos.filter(g => g.negocio === state.negocioActual);
 }
 
 // Cierres de facturación del negocio actualmente seleccionado.
 function facturacionesDelNegocio() {
-  return facturaciones.filter(f => f.negocio === negocioActual);
+  return state.facturaciones.filter(f => f.negocio === state.negocioActual);
 }
 
 function listenSocios() {
-  const socioDocRef = fbSdk.doc(db, "config", "socios");
-  fbSdk.onSnapshot(socioDocRef, (snap) => {
+  const socioDocRef = state.fbSdk.doc(state.db, "config", "socios");
+  state.fbSdk.onSnapshot(socioDocRef, (snap) => {
     if (snap.exists() && Array.isArray(snap.data().socios)) {
       const data = snap.data();
-      socios = data.socios;
-      colaboradores = Array.isArray(data.colaboradores) ? data.colaboradores : [];
-      admins = Array.isArray(data.admins) ? data.admins : [];
-      pins = data.pins && typeof data.pins === "object" ? data.pins : {};
-      claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
+      state.socios = data.socios;
+      state.colaboradores = Array.isArray(data.colaboradores) ? data.colaboradores : [];
+      state.admins = Array.isArray(data.admins) ? data.admins : [];
+      state.pins = data.pins && typeof data.pins === "object" ? data.pins : {};
+      state.claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
       if (Array.isArray(data.categoriasGastos)) {
-        categoriasGastos = normalizarCategoriasGastos(data.categoriasGastos);
+        state.categoriasGastos = normalizarCategoriasGastos(data.categoriasGastos);
         if (data.categoriasGastos.some(c => typeof c !== "string")) {
           // Quedó guardado en el formato viejo {nombre, soloAdmin} — se
           // reescribe ya corregido para que no vuelva a pasar.
-          fbSdk.updateDoc(socioDocRef, { categoriasGastos }).catch(() => {});
+          state.fbSdk.updateDoc(socioDocRef, { categoriasGastos: state.categoriasGastos }).catch(() => {});
         }
-      } else if (!categoriasGastosSembrado) {
+      } else if (!state.categoriasGastosSembrado) {
         // Instalación de antes de que existiera este campo — se siembra una
         // sola vez con el default, para que quede persistido en Firestore.
-        categoriasGastosSembrado = true;
-        categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
-        fbSdk.updateDoc(socioDocRef, { categoriasGastos }).catch(() => {});
+        state.categoriasGastosSembrado = true;
+        state.categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
+        state.fbSdk.updateDoc(socioDocRef, { categoriasGastos: state.categoriasGastos }).catch(() => {});
       }
-      localStorage.setItem(LS_SOCIOS_CACHE, JSON.stringify(socios));
-      localStorage.setItem(LS_COLAB_CACHE, JSON.stringify(colaboradores));
-      esAdmin = usuarioActual ? admins.includes(usuarioActual) : false;
+      localStorage.setItem(LS_SOCIOS_CACHE, JSON.stringify(state.socios));
+      localStorage.setItem(LS_COLAB_CACHE, JSON.stringify(state.colaboradores));
+      state.esAdmin = state.usuarioActual ? state.admins.includes(state.usuarioActual) : false;
       renderPagadorChips();
       renderPagadorChipsFacturado();
       renderAjustesSocios();
@@ -671,20 +591,20 @@ function listenSocios() {
 }
 
 function listenGastos() {
-  const q = fbSdk.query(
-    fbSdk.collection(db, "gastos"),
-    fbSdk.where("fecha", ">=", fechaLimiteHistorial()),
-    fbSdk.orderBy("fecha", "desc")
+  const q = state.fbSdk.query(
+    state.fbSdk.collection(state.db, "gastos"),
+    state.fbSdk.where("fecha", ">=", fechaLimiteHistorial()),
+    state.fbSdk.orderBy("fecha", "desc")
   );
-  fbSdk.onSnapshot(q, (snapshot) => {
-    gastos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  state.fbSdk.onSnapshot(q, (snapshot) => {
+    state.gastos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderGastos();
     renderGastosAdmin();
     renderBalance();
-    if (negocioActual) renderResumen();
+    if (state.negocioActual) renderResumen();
     setSyncOffline(false);
-    if (!fotosLimpiezaHecha) {
-      fotosLimpiezaHecha = true;
+    if (!state.fotosLimpiezaHecha) {
+      state.fotosLimpiezaHecha = true;
       limpiarFotosVencidas();
     }
   }, (err) => {
@@ -694,15 +614,15 @@ function listenGastos() {
 }
 
 function listenFacturacion() {
-  const q = fbSdk.query(
-    fbSdk.collection(db, "facturacion"),
-    fbSdk.where("fecha", ">=", fechaLimiteHistorial()),
-    fbSdk.orderBy("fecha", "desc")
+  const q = state.fbSdk.query(
+    state.fbSdk.collection(state.db, "facturacion"),
+    state.fbSdk.where("fecha", ">=", fechaLimiteHistorial()),
+    state.fbSdk.orderBy("fecha", "desc")
   );
-  fbSdk.onSnapshot(q, (snapshot) => {
-    facturaciones = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  state.fbSdk.onSnapshot(q, (snapshot) => {
+    state.facturaciones = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderFacturado();
-    if (negocioActual) renderResumen();
+    if (state.negocioActual) renderResumen();
     setSyncOffline(false);
   }, (err) => {
     console.error(err);
@@ -712,9 +632,9 @@ function listenFacturacion() {
 
 // No se filtran por "negocio" (acá hay un solo negocio, no hace falta).
 function listenIdeas() {
-  const q = fbSdk.query(fbSdk.collection(db, "ideas"), fbSdk.orderBy("creadoEn", "desc"));
-  fbSdk.onSnapshot(q, (snapshot) => {
-    ideas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  const q = state.fbSdk.query(state.fbSdk.collection(state.db, "ideas"), state.fbSdk.orderBy("creadoEn", "desc"));
+  state.fbSdk.onSnapshot(q, (snapshot) => {
+    state.ideas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderIdeas();
     setSyncOffline(false);
   }, (err) => {
@@ -725,9 +645,9 @@ function listenIdeas() {
 
 // Misma mecánica que Ideas (ver listenIdeas), colección aparte "reportes".
 function listenReportes() {
-  const q = fbSdk.query(fbSdk.collection(db, "reportes"), fbSdk.orderBy("creadoEn", "desc"));
-  fbSdk.onSnapshot(q, (snapshot) => {
-    reportes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  const q = state.fbSdk.query(state.fbSdk.collection(state.db, "reportes"), state.fbSdk.orderBy("creadoEn", "desc"));
+  state.fbSdk.onSnapshot(q, (snapshot) => {
+    state.reportes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderReportes();
     setSyncOffline(false);
   }, (err) => {
@@ -742,9 +662,9 @@ function listenReportes() {
 // es solo que la tarjeta/pantalla no aparecen salvo para Sergio y Pola
 // (ver puedeVerInversion).
 function listenInversion() {
-  const q = fbSdk.query(fbSdk.collection(db, "inversion"), fbSdk.orderBy("creadoEn", "desc"));
-  fbSdk.onSnapshot(q, (snapshot) => {
-    inversiones = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  const q = state.fbSdk.query(state.fbSdk.collection(state.db, "inversion"), state.fbSdk.orderBy("creadoEn", "desc"));
+  state.fbSdk.onSnapshot(q, (snapshot) => {
+    state.inversiones = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderInversion();
     setSyncOffline(false);
   }, (err) => {
@@ -770,7 +690,7 @@ function listenConnectivity() {
 function gastosFechaBase() {
   const d = new Date();
   d.setDate(1); // evita saltos raros de mes al sumar/restar meses
-  d.setMonth(d.getMonth() + gastosMesOffset);
+  d.setMonth(d.getMonth() + state.gastosMesOffset);
   return d;
 }
 
@@ -791,7 +711,7 @@ function crearGastoLi(g) {
     : "";
 
   // Editar/borrar solo para el admin — el resto solo puede cargar y ver.
-  const adminBtns = esAdmin
+  const adminBtns = state.esAdmin
     ? `<button type="button" class="icon-btn gasto-edit-btn" data-id="${g.id}" aria-label="Editar gasto">✏️</button>
        <button type="button" class="icon-btn danger gasto-delete-btn" data-id="${g.id}" aria-label="Borrar gasto">🗑️</button>`
     : "";
@@ -809,7 +729,7 @@ function crearGastoLi(g) {
   // mezclado) esta marca es la única forma de distinguirlo a simple
   // vista, ya que la categoría ya no implica privacidad. Solo se muestra
   // al admin: un colaborador nunca llega a ver este gasto de todos modos.
-  const metaSoloAdmin = (esAdmin && g.soloAdmin) ? ` · 🔒 Solo admin` : "";
+  const metaSoloAdmin = (state.esAdmin && g.soloAdmin) ? ` · 🔒 Solo admin` : "";
 
   // Notas largas hacían la fila del gasto muy alta en el celular — se
   // recortan a las primeras 2 palabras y el resto se ve tocando "Ver
@@ -865,7 +785,7 @@ function renderGastos() {
   $("#btn-gastos-mes-siguiente").disabled = esMesActual;
 
   const gastosMes = gastosDelNegocio().filter(g => {
-    if (!esAdmin && g.soloAdmin) return false;
+    if (!state.esAdmin && g.soloAdmin) return false;
     const f = fechaDeRegistro(g);
     return f.getMonth() === targetMonth && f.getFullYear() === targetYear;
   });
@@ -897,7 +817,7 @@ function renderGastos() {
 function gastosAdminFechaBase() {
   const d = new Date();
   d.setDate(1);
-  d.setMonth(d.getMonth() + gastosAdminMesOffset);
+  d.setMonth(d.getMonth() + state.gastosAdminMesOffset);
   return d;
 }
 
@@ -944,30 +864,28 @@ function fotosDeGasto(g) {
 }
 
 // ---------- Visor de fotos (una o varias, del mismo gasto) ----------
-let visorFotosLista = [];
-let visorFotosIndex = 0;
 
 function abrirVisorFotos(fotos, indexInicial = 0) {
   if (!fotos.length) return;
-  visorFotosLista = fotos;
-  visorFotosIndex = indexInicial;
+  state.visorFotosLista = fotos;
+  state.visorFotosIndex = indexInicial;
   renderVisorFotos();
   $("#modal-visor-fotos").classList.add("active");
 }
 
 function renderVisorFotos() {
-  const foto = visorFotosLista[visorFotosIndex];
+  const foto = state.visorFotosLista[state.visorFotosIndex];
   $("#visor-fotos-img").src = foto.url;
-  const varias = visorFotosLista.length > 1;
-  $("#visor-fotos-contador").textContent = `${visorFotosIndex + 1} / ${visorFotosLista.length}`;
+  const varias = state.visorFotosLista.length > 1;
+  $("#visor-fotos-contador").textContent = `${state.visorFotosIndex + 1} / ${state.visorFotosLista.length}`;
   $("#visor-fotos-contador").classList.toggle("hidden", !varias);
   $("#btn-visor-anterior").classList.toggle("hidden", !varias);
   $("#btn-visor-siguiente").classList.toggle("hidden", !varias);
 }
 
 function visorFotosMover(delta) {
-  const n = visorFotosLista.length;
-  visorFotosIndex = (visorFotosIndex + delta + n) % n;
+  const n = state.visorFotosLista.length;
+  state.visorFotosIndex = (state.visorFotosIndex + delta + n) % n;
   renderVisorFotos();
 }
 
@@ -987,7 +905,7 @@ function formaPagoLabel(g) {
 // renderGastos, para notas largas) — un cartel simple en vez de otro
 // modal, ya que es solo para leer, no para editar.
 function verDetalleGasto(id) {
-  const g = gastos.find(x => x.id === id);
+  const g = state.gastos.find(x => x.id === id);
   if (!g) return;
   const fecha = fechaDeRegistro(g).toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
 
@@ -1037,7 +955,7 @@ function renderCierreItem(f) {
   const fotoBtn = f.fotoUrl
     ? `<button type="button" class="foto-link" data-url="${escapeHtml(f.fotoUrl)}" aria-label="Ver foto del cierre">📷</button>`
     : "";
-  const adminBtns = esAdmin
+  const adminBtns = state.esAdmin
     ? `<button type="button" class="icon-btn cierre-edit-btn" data-id="${f.id}" aria-label="Editar cierre">✏️</button>
        <button type="button" class="icon-btn danger cierre-delete-btn" data-id="${f.id}" aria-label="Borrar cierre">🗑️</button>`
     : "";
@@ -1097,7 +1015,7 @@ function renderCierreFaltante(fecha, turno) {
 function facturadoFechaBase() {
   const d = new Date();
   d.setDate(1); // evita saltos raros de mes al sumar/restar meses
-  d.setMonth(d.getMonth() + facturadoMesOffset);
+  d.setMonth(d.getMonth() + state.facturadoMesOffset);
   return d;
 }
 
@@ -1181,7 +1099,7 @@ function renderFacturado() {
 
   empty.classList.toggle("hidden", list.children.length > 0);
 
-  $("#facturado-total-mes-wrap").classList.toggle("hidden", !esAdmin);
+  $("#facturado-total-mes-wrap").classList.toggle("hidden", !state.esAdmin);
   $("#facturado-total-mes").textContent = money(totalMes);
   $("#facturado-total-hoy").textContent = money(totalHoy);
   $("#facturado-turnos-hoy").textContent = `${turnosHoy.size} de ${TURNOS.length} turnos cargados`;
@@ -1189,11 +1107,11 @@ function renderFacturado() {
 
 // ---------- Render: Ideas (checklist compartido) ----------
 function renderIdeas() {
-  const total = ideas.length;
-  const concretadas = ideas.filter(i => i.estado === "concretada");
+  const total = state.ideas.length;
+  const concretadas = state.ideas.filter(i => i.estado === "concretada");
   // Pendientes ordenadas por votos — así se ve de un vistazo qué le
   // interesa más al equipo, sin que nadie tenga que decidir solo.
-  const pendientes = ideas
+  const pendientes = state.ideas
     .filter(i => i.estado !== "concretada")
     .slice()
     .sort((a, b) => votosDe(b).length - votosDe(a).length);
@@ -1224,11 +1142,11 @@ function ideaCard(idea) {
   const done = idea.estado === "concretada";
   const fecha = fechaDeRegistro(idea);
   const votos = votosDe(idea);
-  const voteado = usuarioActual && votos.includes(usuarioActual);
+  const voteado = state.usuarioActual && votos.includes(state.usuarioActual);
   const card = document.createElement("div");
   card.className = "idea-card";
   card.dataset.id = idea.id;
-  const deleteBtn = esAdmin
+  const deleteBtn = state.esAdmin
     ? `<button type="button" class="icon-btn danger idea-delete-btn" data-id="${idea.id}" aria-label="Borrar idea">🗑️</button>`
     : "";
   card.innerHTML = `
@@ -1246,12 +1164,12 @@ function ideaCard(idea) {
 // Cualquiera puede votar/desvotar una idea pendiente (no admin) — así se ve
 // qué le importa más al equipo sin que nadie tenga que decidir por otro.
 async function toggleVoto(id) {
-  const idea = ideas.find(i => i.id === id);
-  if (!idea || !usuarioActual) return;
-  const yaVoto = votosDe(idea).includes(usuarioActual);
+  const idea = state.ideas.find(i => i.id === id);
+  if (!idea || !state.usuarioActual) return;
+  const yaVoto = votosDe(idea).includes(state.usuarioActual);
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "ideas", id), {
-      votos: yaVoto ? fbSdk.arrayRemove(usuarioActual) : fbSdk.arrayUnion(usuarioActual)
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "ideas", id), {
+      votos: yaVoto ? state.fbSdk.arrayRemove(state.usuarioActual) : state.fbSdk.arrayUnion(state.usuarioActual)
     });
   } catch (e) {
     console.error(e);
@@ -1262,11 +1180,11 @@ async function toggleVoto(id) {
 // Cualquiera puede marcar/desmarcar una idea como concretada — sin admin,
 // para que sea tan liviano como tildar un check en una lista de tareas.
 async function toggleIdeaEstado(id) {
-  const idea = ideas.find(i => i.id === id);
+  const idea = state.ideas.find(i => i.id === id);
   if (!idea) return;
   const nuevoEstado = idea.estado === "concretada" ? "pendiente" : "concretada";
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "ideas", id), { estado: nuevoEstado });
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "ideas", id), { estado: nuevoEstado });
   } catch (e) {
     console.error(e);
     showToast("No se pudo actualizar. Revisá tu conexión.");
@@ -1277,7 +1195,7 @@ async function toggleIdeaEstado(id) {
 async function deleteIdea(id) {
   if (!confirm("¿Borrar esta idea?")) return;
   try {
-    await fbSdk.deleteDoc(fbSdk.doc(db, "ideas", id));
+    await state.fbSdk.deleteDoc(state.fbSdk.doc(state.db, "ideas", id));
     showToast("Idea borrada");
   } catch (e) {
     console.error(e);
@@ -1309,12 +1227,12 @@ async function saveIdea() {
   btn.disabled = true;
   btn.textContent = "Guardando…";
   try {
-    await fbSdk.addDoc(fbSdk.collection(db, "ideas"), {
+    await state.fbSdk.addDoc(state.fbSdk.collection(state.db, "ideas"), {
       texto,
       estado: "pendiente",
       votos: [],
-      propuestoPor: usuarioActual,
-      creadoEn: fbSdk.serverTimestamp()
+      propuestoPor: state.usuarioActual,
+      creadoEn: state.fbSdk.serverTimestamp()
     });
     closeModalIdea();
     showToast("Idea guardada ✅");
@@ -1332,9 +1250,9 @@ async function saveIdea() {
 // Misma estructura que Ideas (pendientes/resueltos, votos, borrar solo
 // admin), colección Firestore aparte ("reportes") — ver listenReportes.
 function renderReportes() {
-  const total = reportes.length;
-  const resueltos = reportes.filter(r => r.estado === "resuelto");
-  const pendientes = reportes
+  const total = state.reportes.length;
+  const resueltos = state.reportes.filter(r => r.estado === "resuelto");
+  const pendientes = state.reportes
     .filter(r => r.estado !== "resuelto")
     .slice()
     .sort((a, b) => votosDe(b).length - votosDe(a).length);
@@ -1361,11 +1279,11 @@ function reporteCard(reporte) {
   const done = reporte.estado === "resuelto";
   const fecha = fechaDeRegistro(reporte);
   const votos = votosDe(reporte);
-  const voteado = usuarioActual && votos.includes(usuarioActual);
+  const voteado = state.usuarioActual && votos.includes(state.usuarioActual);
   const card = document.createElement("div");
   card.className = "idea-card";
   card.dataset.id = reporte.id;
-  const deleteBtn = esAdmin
+  const deleteBtn = state.esAdmin
     ? `<button type="button" class="icon-btn danger reporte-delete-btn" data-id="${reporte.id}" aria-label="Borrar reporte">🗑️</button>`
     : "";
   // "Resuelto por" solo se muestra si ya está marcado como resuelto y quedó
@@ -1389,12 +1307,12 @@ function reporteCard(reporte) {
 // Cualquiera puede votar/desvotar un reporte pendiente — igual criterio que
 // toggleVoto() en Ideas: sirve para priorizar qué arreglar primero.
 async function toggleVotoReporte(id) {
-  const reporte = reportes.find(r => r.id === id);
-  if (!reporte || !usuarioActual) return;
-  const yaVoto = votosDe(reporte).includes(usuarioActual);
+  const reporte = state.reportes.find(r => r.id === id);
+  if (!reporte || !state.usuarioActual) return;
+  const yaVoto = votosDe(reporte).includes(state.usuarioActual);
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "reportes", id), {
-      votos: yaVoto ? fbSdk.arrayRemove(usuarioActual) : fbSdk.arrayUnion(usuarioActual)
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "reportes", id), {
+      votos: yaVoto ? state.fbSdk.arrayRemove(state.usuarioActual) : state.fbSdk.arrayUnion(state.usuarioActual)
     });
   } catch (e) {
     console.error(e);
@@ -1405,16 +1323,16 @@ async function toggleVotoReporte(id) {
 // Cualquiera puede marcar/desmarcar un reporte como resuelto — sin admin,
 // igual que toggleIdeaEstado() en Ideas.
 async function toggleReporteEstado(id) {
-  const reporte = reportes.find(r => r.id === id);
+  const reporte = state.reportes.find(r => r.id === id);
   if (!reporte) return;
   const marcandoResuelto = reporte.estado !== "resuelto";
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "reportes", id), {
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "reportes", id), {
       estado: marcandoResuelto ? "resuelto" : "pendiente",
       // Queda registrado quién lo solucionó (ver reporteCard). Si se
       // reabre, se limpia — si se vuelve a resolver, se pisa con quien
       // corresponda en ese momento.
-      resueltoPor: marcandoResuelto ? usuarioActual : fbSdk.deleteField()
+      resueltoPor: marcandoResuelto ? state.usuarioActual : state.fbSdk.deleteField()
     });
   } catch (e) {
     console.error(e);
@@ -1426,7 +1344,7 @@ async function toggleReporteEstado(id) {
 async function deleteReporte(id) {
   if (!confirm("¿Borrar este reporte?")) return;
   try {
-    await fbSdk.deleteDoc(fbSdk.doc(db, "reportes", id));
+    await state.fbSdk.deleteDoc(state.fbSdk.doc(state.db, "reportes", id));
     showToast("Reporte borrado");
   } catch (e) {
     console.error(e);
@@ -1458,12 +1376,12 @@ async function saveReporte() {
   btn.disabled = true;
   btn.textContent = "Guardando…";
   try {
-    await fbSdk.addDoc(fbSdk.collection(db, "reportes"), {
+    await state.fbSdk.addDoc(state.fbSdk.collection(state.db, "reportes"), {
       texto,
       estado: "pendiente",
       votos: [],
-      propuestoPor: usuarioActual,
-      creadoEn: fbSdk.serverTimestamp()
+      propuestoPor: state.usuarioActual,
+      creadoEn: state.fbSdk.serverTimestamp()
     });
     closeModalReporte();
     showToast("Reporte guardado ✅");
@@ -1482,7 +1400,7 @@ async function saveReporte() {
 // incremento) — por eso "lo recuperado hasta ahora" es simplemente el
 // monto del último doc (los más nuevos van primero, ver listenInversion).
 function inversionActual() {
-  return inversiones.length ? (Number(inversiones[0].monto) || 0) : 0;
+  return state.inversiones.length ? (Number(state.inversiones[0].monto) || 0) : 0;
 }
 
 // Pedido puntual de Sergio para esta pantalla: mostrar "Millones" al lado
@@ -1504,9 +1422,9 @@ function renderInversion() {
   const list = $("#inversion-list");
   const empty = $("#inversion-empty");
   list.innerHTML = "";
-  empty.classList.toggle("hidden", inversiones.length > 0);
+  empty.classList.toggle("hidden", state.inversiones.length > 0);
 
-  inversiones.forEach(inv => {
+  state.inversiones.forEach(inv => {
     const fecha = fechaDeRegistro(inv);
     const deleteBtn = puedeCargarInversion()
       ? `<button type="button" class="icon-btn danger inversion-delete-btn" data-id="${inv.id}" aria-label="Borrar esta actualización">🗑️</button>`
@@ -1551,10 +1469,10 @@ async function saveInversion() {
   btn.disabled = true;
   btn.textContent = "Guardando…";
   try {
-    await fbSdk.addDoc(fbSdk.collection(db, "inversion"), {
+    await state.fbSdk.addDoc(state.fbSdk.collection(state.db, "inversion"), {
       monto,
-      registradoPor: usuarioActual,
-      creadoEn: fbSdk.serverTimestamp()
+      registradoPor: state.usuarioActual,
+      creadoEn: state.fbSdk.serverTimestamp()
     });
     closeModalInversion();
     showToast("Actualización guardada ✅");
@@ -1572,7 +1490,7 @@ async function saveInversion() {
 async function deleteInversion(id) {
   if (!confirm("¿Borrar esta actualización del historial?")) return;
   try {
-    await fbSdk.deleteDoc(fbSdk.doc(db, "inversion", id));
+    await state.fbSdk.deleteDoc(state.fbSdk.doc(state.db, "inversion", id));
     showToast("Actualización borrada");
   } catch (e) {
     console.error(e);
@@ -1588,7 +1506,7 @@ async function deleteInversion(id) {
 function resumenFechaBase() {
   const d = new Date();
   d.setDate(1); // evita saltos raros de mes al sumar/restar meses
-  d.setMonth(d.getMonth() + resumenMesOffset);
+  d.setMonth(d.getMonth() + state.resumenMesOffset);
   return d;
 }
 
@@ -1740,22 +1658,22 @@ function renderResumen() {
 // gasto en sí (importe, descripción, etc.) NUNCA se toca ni se borra.
 async function limpiarFotosVencidas() {
   const limite = Date.now() - FOTO_RETENCION_DIAS * 24 * 60 * 60 * 1000;
-  const vencidos = gastos.filter(g => fotosDeGasto(g).length && fechaDeRegistro(g).getTime() < limite);
+  const vencidos = state.gastos.filter(g => fotosDeGasto(g).length && fechaDeRegistro(g).getTime() < limite);
 
   for (const g of vencidos) {
     for (const f of fotosDeGasto(g)) {
       if (!f.path) continue;
       try {
-        await fbSdk.deleteObject(fbSdk.ref(storage, f.path));
+        await state.fbSdk.deleteObject(state.fbSdk.ref(state.storage, f.path));
       } catch (e) {
         console.warn("No se pudo borrar la foto vencida (puede que ya no exista):", e.message);
       }
     }
     try {
-      await fbSdk.updateDoc(fbSdk.doc(db, "gastos", g.id), {
-        fotos: fbSdk.deleteField(),
-        fotoUrl: fbSdk.deleteField(),
-        fotoPath: fbSdk.deleteField()
+      await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "gastos", g.id), {
+        fotos: state.fbSdk.deleteField(),
+        fotoUrl: state.fbSdk.deleteField(),
+        fotoPath: state.fbSdk.deleteField()
       });
     } catch (e) {
       console.warn("No se pudo limpiar la referencia de la foto:", e.message);
@@ -1815,22 +1733,22 @@ function renderFotosGuardadas() {
 
 // ---------- Render: Balance ----------
 function renderBalance() {
-  if (!socios.length) return;
+  if (!state.socios.length) return;
 
   const gastosNegocio = gastosDelNegocio();
   const total = gastosNegocio.reduce((sum, g) => sum + (Number(g.importe) || 0), 0);
   $("#total-historico").textContent = money(total);
 
-  const porSocio = socios.map(() => 0);
+  const porSocio = state.socios.map(() => 0);
   gastosNegocio.forEach(g => {
-    const idx = socios.indexOf(g.pagadoPor);
+    const idx = state.socios.indexOf(g.pagadoPor);
     if (idx !== -1) porSocio[idx] += Number(g.importe) || 0;
   });
 
   const maxPorSocio = Math.max(1, ...porSocio);
   const totalesEl = $("#socios-totales");
   totalesEl.innerHTML = "";
-  socios.forEach((nombre, idx) => {
+  state.socios.forEach((nombre, idx) => {
     const pct = Math.round((porSocio[idx] / maxPorSocio) * 100);
     const card = document.createElement("div");
     card.className = "socio-total-card";
@@ -1848,8 +1766,8 @@ function renderBalance() {
   });
 
   // Deudas: cada socio "debería" haber puesto total/n
-  const fairShare = total / socios.length;
-  const balances = socios.map((nombre, idx) => ({
+  const fairShare = total / state.socios.length;
+  const balances = state.socios.map((nombre, idx) => ({
     nombre, idx, balance: porSocio[idx] - fairShare
   }));
 
@@ -1883,14 +1801,14 @@ function renderBalance() {
 // entre los socios.
 function renderColaboradoresTotales() {
   const section = $("#colaboradores-section");
-  if (!colaboradores.length) {
+  if (!state.colaboradores.length) {
     section.classList.add("hidden");
     return;
   }
 
-  const porColaborador = colaboradores.map(() => 0);
+  const porColaborador = state.colaboradores.map(() => 0);
   gastosDelNegocio().forEach(g => {
-    const idx = colaboradores.indexOf(g.pagadoPor);
+    const idx = state.colaboradores.indexOf(g.pagadoPor);
     if (idx !== -1) porColaborador[idx] += Number(g.importe) || 0;
   });
 
@@ -1904,7 +1822,7 @@ function renderColaboradoresTotales() {
   const maxVal = Math.max(1, ...porColaborador);
   const wrap = $("#colaboradores-totales");
   wrap.innerHTML = "";
-  colaboradores.forEach((nombre, idx) => {
+  state.colaboradores.forEach((nombre, idx) => {
     const pct = Math.round((porColaborador[idx] / maxVal) * 100);
     if (!porColaborador[idx]) return;
     const card = document.createElement("div");
@@ -1956,7 +1874,7 @@ function renderPagadorChips() {
     chip.textContent = nombre;
     chip.style.setProperty("--chip-color", payerColorVar(nombre));
     chip.addEventListener("click", () => {
-      selectedPagador = nombre;
+      state.selectedPagador = nombre;
       wrap.querySelectorAll(".pagador-chip").forEach(c => c.classList.remove("selected"));
       chip.classList.add("selected");
     });
@@ -1974,7 +1892,7 @@ function renderPagadorChipsFacturado() {
     chip.textContent = nombre;
     chip.style.setProperty("--chip-color", payerColorVar(nombre));
     chip.addEventListener("click", () => {
-      selectedRegistrador = nombre;
+      state.selectedRegistrador = nombre;
       wrap.querySelectorAll(".pagador-chip").forEach(c => c.classList.remove("selected"));
       chip.classList.add("selected");
     });
@@ -1986,37 +1904,37 @@ function renderPagadorChipsFacturado() {
 function renderAjustesSocios() {
   const wrap = $("#ajustes-socios-list");
   wrap.innerHTML = "";
-  socios.forEach((nombre, idx) => {
+  state.socios.forEach((nombre, idx) => {
     const row = document.createElement("div");
     row.className = "ajustes-socio-row";
-    const badge = admins.includes(nombre) ? `<span class="admin-badge">Admin</span>` : "";
+    const badge = state.admins.includes(nombre) ? `<span class="admin-badge">Admin</span>` : "";
     row.innerHTML = `<span class="socio-dot" style="background:${socioColorVar(idx)}"></span> ${escapeHtml(nombre)} ${badge}`;
     wrap.appendChild(row);
   });
 
   const usuarioEl = $("#ajustes-usuario-actual");
-  usuarioEl.innerHTML = usuarioActual
-    ? `Ingresaste como <b>${escapeHtml(usuarioActual)}</b>${esAdmin ? ' <span class="admin-badge">Admin</span>' : ""}`
+  usuarioEl.innerHTML = state.usuarioActual
+    ? `Ingresaste como <b>${escapeHtml(state.usuarioActual)}</b>${state.esAdmin ? ' <span class="admin-badge">Admin</span>' : ""}`
     : "Sin identificar";
 
   const colabWrap = $("#ajustes-colaboradores-list");
   const colabEmpty = $("#ajustes-colaboradores-empty");
   colabWrap.innerHTML = "";
-  if (colaboradores.length) {
+  if (state.colaboradores.length) {
     colabEmpty.classList.add("hidden");
-    colaboradores.forEach((nombre) => {
+    state.colaboradores.forEach((nombre) => {
       const row = document.createElement("div");
       row.className = "ajustes-socio-row";
-      const esAdminColab = admins.includes(nombre);
+      const esAdminColab = state.admins.includes(nombre);
       const badge = esAdminColab ? `<span class="admin-badge">Admin</span>` : "";
       // Solo el admin puede volver admin (o sacarle el admin) a un
       // colaborador — permite que alguien que no es socio (ej. otro dueño
       // agregado como colaborador para no entrar al reparto) pueda editar
       // y borrar igual que un socio, sin tocar el cálculo de Balance.
-      const adminToggleBtn = esAdmin
+      const adminToggleBtn = state.esAdmin
         ? `<button type="button" class="icon-btn admin-toggle-btn" data-nombre="${escapeHtml(nombre)}" aria-label="${esAdminColab ? "Quitar admin" : "Hacer admin"}" title="${esAdminColab ? "Quitar admin" : "Hacer admin"}">${esAdminColab ? "🛡️" : "🔓"}</button>`
         : "";
-      const removeBtn = esAdmin
+      const removeBtn = state.esAdmin
         ? `<button type="button" class="icon-btn danger colaborador-remove-btn" data-nombre="${escapeHtml(nombre)}" aria-label="Quitar colaborador">🗑️</button>`
         : "";
       row.innerHTML = `<span class="socio-dot" style="background:${payerColorVar(nombre)}"></span> ${escapeHtml(nombre)} ${badge}<span style="margin-left:auto;display:flex;gap:4px;">${adminToggleBtn}${removeBtn}</span>`;
@@ -2025,25 +1943,25 @@ function renderAjustesSocios() {
   } else {
     colabEmpty.classList.remove("hidden");
   }
-  $("#admin-add-colaborador-wrap").classList.toggle("hidden", !esAdmin);
-  $("#ajustes-clave-maestra-card").classList.toggle("hidden", !esAdmin);
+  $("#admin-add-colaborador-wrap").classList.toggle("hidden", !state.esAdmin);
+  $("#ajustes-clave-maestra-card").classList.toggle("hidden", !state.esAdmin);
   renderAjustesCategorias();
 
   // Historial de logeos: escondido para todos salvo Sergio (ver
   // registrarLogin/cargarHistorialLogins) — acá puede haber más de un
   // admin (un colaborador ascendido, ver adminToggleBtn arriba), por eso se
   // chequea el nombre puntual y no esAdmin.
-  const esSergio = usuarioActual === "Sergio";
+  const esSergio = state.usuarioActual === "Sergio";
   $("#ajustes-historial-logins-card").classList.toggle("hidden", !esSergio);
   if (esSergio) cargarHistorialLogins();
 
-  $("#ajustes-conn-status").textContent = auth && auth.currentUser
+  $("#ajustes-conn-status").textContent = state.auth && state.auth.currentUser
     ? "✅ Conectado — los gastos se sincronizan entre todos los celulares."
     : "⚠️ No conectado.";
 
   // Con un solo dueño (socios.length === 1) el "balance entre socios" es
   // siempre trivial (100% para esa única persona) — no aporta nada, se oculta.
-  $('.tabbtn[data-tab="balance"]').classList.toggle("hidden", socios.length <= 1);
+  $('.tabbtn[data-tab="balance"]').classList.toggle("hidden", state.socios.length <= 1);
 }
 
 // Lista de categorías de gasto en Ajustes — solo la ve/edita el admin
@@ -2051,12 +1969,12 @@ function renderAjustesSocios() {
 // categoriasGastos más arriba) — lo privado ahora es el checkbox "Gasto
 // Admin" de cada gasto individual, no la categoría.
 function renderAjustesCategorias() {
-  $("#ajustes-categorias-card").classList.toggle("hidden", !esAdmin);
-  if (!esAdmin) return;
+  $("#ajustes-categorias-card").classList.toggle("hidden", !state.esAdmin);
+  if (!state.esAdmin) return;
 
   const wrap = $("#ajustes-categorias-list");
   wrap.innerHTML = "";
-  categoriasGastos.forEach((nombre) => {
+  state.categoriasGastos.forEach((nombre) => {
     const row = document.createElement("div");
     row.className = "ajustes-socio-row";
     row.innerHTML = `
@@ -2070,13 +1988,13 @@ async function agregarCategoriaDesdeAjustes() {
   const input = $("#input-nueva-categoria");
   const nombre = input.value.trim();
   if (!nombre) return;
-  if (categoriasGastos.includes(nombre)) {
+  if (state.categoriasGastos.includes(nombre)) {
     showToast("Esa categoría ya existe.");
     return;
   }
-  const nuevas = categoriasGastos.concat([nombre]);
+  const nuevas = state.categoriasGastos.concat([nombre]);
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), { categoriasGastos: nuevas });
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "config", "socios"), { categoriasGastos: nuevas });
     input.value = "";
     showToast("Categoría agregada ✅");
   } catch (e) {
@@ -2090,9 +2008,9 @@ async function agregarCategoriaDesdeAjustes() {
 // poder elegirse para gastos nuevos.
 async function quitarCategoria(nombre) {
   if (!confirm(`¿Borrar la categoría "${nombre}"? Los gastos que ya la tienen cargada no cambian, solo no se va a poder elegir de nuevo.`)) return;
-  const nuevas = categoriasGastos.filter(c => c !== nombre);
+  const nuevas = state.categoriasGastos.filter(c => c !== nombre);
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), { categoriasGastos: nuevas });
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "config", "socios"), { categoriasGastos: nuevas });
     showToast("Categoría borrada");
   } catch (e) {
     console.error(e);
@@ -2112,8 +2030,8 @@ async function agregarColaboradorDesdeAjustes() {
     return;
   }
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), {
-      colaboradores: fbSdk.arrayUnion(nombre)
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "config", "socios"), {
+      colaboradores: state.fbSdk.arrayUnion(nombre)
     });
     input.value = "";
     showToast("Colaborador agregado ✅");
@@ -2126,8 +2044,8 @@ async function agregarColaboradorDesdeAjustes() {
 async function quitarColaborador(nombre) {
   if (!confirm(`¿Quitar a ${nombre}? Los gastos que ya cargó quedan igual.`)) return;
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), {
-      colaboradores: fbSdk.arrayRemove(nombre)
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "config", "socios"), {
+      colaboradores: state.fbSdk.arrayRemove(nombre)
     });
     showToast("Colaborador quitado");
   } catch (e) {
@@ -2141,10 +2059,10 @@ async function quitarColaborador(nombre) {
 // permisos de editar/borrar a alguien sin sumarlo al cálculo de Balance
 // (ej. otro dueño que se agrega como colaborador a propósito).
 async function toggleAdminColaborador(nombre) {
-  const yaEsAdmin = admins.includes(nombre);
+  const yaEsAdmin = state.admins.includes(nombre);
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), {
-      admins: yaEsAdmin ? fbSdk.arrayRemove(nombre) : fbSdk.arrayUnion(nombre)
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "config", "socios"), {
+      admins: yaEsAdmin ? state.fbSdk.arrayRemove(nombre) : state.fbSdk.arrayUnion(nombre)
     });
     showToast(yaEsAdmin ? `${nombre} ya no es admin` : `${nombre} ahora es admin ✅`);
   } catch (e) {
@@ -2171,8 +2089,8 @@ async function guardarClaveMaestra() {
   btn.disabled = true;
   btn.textContent = "Guardando…";
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), { claveMaestraAdmin: nueva });
-    claveMaestraAdmin = nueva;
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "config", "socios"), { claveMaestraAdmin: nueva });
+    state.claveMaestraAdmin = nueva;
     $("#input-clave-maestra").value = "";
     showToast("Clave maestra actualizada ✅");
   } catch (e) {
@@ -2189,7 +2107,7 @@ async function guardarClaveMaestra() {
 function exportGastosCSV() {
   const rows = [["Fecha", "Categoría", "Descripción", "Importe", "Pagado por", "Forma de pago", "Efectivo", "Digital", "Nota"]];
   gastosDelNegocio()
-    .filter(g => esAdmin || !g.soloAdmin)
+    .filter(g => state.esAdmin || !g.soloAdmin)
     .slice()
     .sort((a, b) => fechaDeRegistro(a) - fechaDeRegistro(b))
     .forEach(g => {
@@ -2205,7 +2123,7 @@ function exportGastosCSV() {
         g.nota || ""
       ]);
     });
-  downloadCSV(`gastos-${negocioActual}-${fechaLocalISO(new Date())}.csv`, rows);
+  downloadCSV(`gastos-${state.negocioActual}-${fechaLocalISO(new Date())}.csv`, rows);
 }
 
 function exportFacturacionCSV() {
@@ -2220,7 +2138,7 @@ function exportFacturacionCSV() {
         f.registradoPor || ""
       ]);
     });
-  downloadCSV(`facturacion-${negocioActual}-${fechaLocalISO(new Date())}.csv`, rows);
+  downloadCSV(`facturacion-${state.negocioActual}-${fechaLocalISO(new Date())}.csv`, rows);
 }
 
 function setDefaultFecha() {
@@ -2235,9 +2153,9 @@ function resetFotoField() {
   // Las fotos "nueva" tienen un object URL propio (URL.createObjectURL)
   // que hay que liberar a mano o se queda en memoria — las "existente"
   // apuntan a Storage, no hace falta nada con ellas acá.
-  fotosGastoModal.forEach(f => { if (f.tipo === "nueva") URL.revokeObjectURL(f.previewUrl); });
-  fotosGastoModal = [];
-  fotosGastoABorrar = [];
+  state.fotosGastoModal.forEach(f => { if (f.tipo === "nueva") URL.revokeObjectURL(f.previewUrl); });
+  state.fotosGastoModal = [];
+  state.fotosGastoABorrar = [];
   $("#input-foto").value = "";
   renderFotoStrip();
 }
@@ -2246,7 +2164,7 @@ function resetFotoField() {
 // o edición) — se llama cada vez que cambia fotosGastoModal.
 function renderFotoStrip() {
   const strip = $("#foto-strip");
-  strip.innerHTML = fotosGastoModal.map((f, idx) => `
+  strip.innerHTML = state.fotosGastoModal.map((f, idx) => `
     <div class="foto-preview-wrap">
       <img class="foto-preview-img" src="${escapeHtml(f.tipo === "nueva" ? f.previewUrl : f.url)}" alt="Vista previa de la factura ${idx + 1}">
       <button type="button" class="foto-remove-btn" data-idx="${idx}" aria-label="Quitar esta foto">×</button>
@@ -2254,11 +2172,11 @@ function renderFotoStrip() {
   `).join("");
   // Al llegar al máximo se esconden los botones de agregar — más simple
   // para quien carga el gasto que un mensaje de error al tocar "Tomar foto".
-  $("#foto-btns-row").classList.toggle("hidden", fotosGastoModal.length >= MAX_FOTOS_GASTO);
+  $("#foto-btns-row").classList.toggle("hidden", state.fotosGastoModal.length >= MAX_FOTOS_GASTO);
 }
 
 function resetFotoFieldFact() {
-  selectedFotoFacturadoBlob = null;
+  state.selectedFotoFacturadoBlob = null;
   $("#input-foto-fact").value = "";
   $("#foto-preview-wrap-fact").classList.add("hidden");
   $("#foto-btns-row-fact").classList.remove("hidden");
@@ -2269,10 +2187,10 @@ function resetFotoFieldFact() {
 // Forma de pago del gasto: Efectivo, Digital, o Mixto. Solo Mixto muestra
 // el desglose Efectivo/Digital, que debe sumar el Importe total.
 function selectFormaPago(forma) {
-  selectedFormaPago = forma;
+  state.selectedFormaPago = forma;
   $$("#forma-pago-options .pagador-chip").forEach(c => c.classList.toggle("selected", c.dataset.forma === forma));
   $("#campo-mixto").classList.toggle("hidden", forma !== "mixto");
-  if (forma !== "mixto") mixtoUltimoEditado = null;
+  if (forma !== "mixto") state.mixtoUltimoEditado = null;
 }
 
 // Cálculo cruzado del desglose Mixto: al salir de Efectivo o Digital (o de
@@ -2281,15 +2199,15 @@ function selectFormaPago(forma) {
 // el "total" ya es el campo Importe que está siempre visible arriba). Los
 // listeners usan "change", no "input" — ver wireEvents().
 function registrarEdicionMixto(campo) {
-  mixtoUltimoEditado = campo;
+  state.mixtoUltimoEditado = campo;
   calcularCampoMixtoFaltante();
 }
 
 function calcularCampoMixtoFaltante() {
-  if (!mixtoUltimoEditado) return;
+  if (!state.mixtoUltimoEditado) return;
   const importe = parseMoneyInput($("#input-importe").value);
   if (!Number.isFinite(importe)) return;
-  if (mixtoUltimoEditado === "efectivo") {
+  if (state.mixtoUltimoEditado === "efectivo") {
     const efectivo = parseMoneyInput($("#input-mixto-efectivo").value);
     if (!Number.isFinite(efectivo)) return;
     $("#input-mixto-digital").value = formatMoneyValue(Math.round((importe - efectivo) * 100) / 100);
@@ -2308,7 +2226,7 @@ function calcularCampoMixtoFaltante() {
 // para no perder el valor guardado de un gasto viejo al editarlo.
 function renderCategoriaOptions(categoriaActual) {
   const sel = $("#input-categoria");
-  let cats = categoriasGastos.slice();
+  let cats = state.categoriasGastos.slice();
   if (categoriaActual && !cats.includes(categoriaActual)) {
     cats = cats.concat([categoriaActual]);
   }
@@ -2323,12 +2241,12 @@ function openModal(gasto, opts) {
     return;
   }
 
-  editingGastoId = gasto ? gasto.id : null;
+  state.editingGastoId = gasto ? gasto.id : null;
   // Un gasto nuevo queda a nombre de quien está identificado en este
   // celular — no hace falta preguntar, si ya se identificó al entrar. Al
   // EDITAR uno existente sí se muestra el selector, por si hay que
   // reasignarlo (ver #campo-pagador más abajo).
-  selectedPagador = gasto ? gasto.pagadoPor : usuarioActual;
+  state.selectedPagador = gasto ? gasto.pagadoPor : state.usuarioActual;
 
   $("#input-importe").value = gasto ? formatMoneyValue(gasto.importe) : "";
   $("#input-descripcion").value = gasto ? (gasto.descripcion || "") : "";
@@ -2339,14 +2257,14 @@ function openModal(gasto, opts) {
   // gasto que carga nunca puede quedar marcado privado por accidente. Al
   // abrir desde "Gastos S/Admin" (ver fab-add-gastos-admin) llega
   // pre-tildado vía opts.soloAdmin, pero el admin lo puede destildar igual.
-  $("#campo-gasto-admin").classList.toggle("hidden", !esAdmin);
+  $("#campo-gasto-admin").classList.toggle("hidden", !state.esAdmin);
   $("#input-gasto-admin").checked = gasto ? !!gasto.soloAdmin : !!(opts && opts.soloAdmin);
   $("#input-nota").value = gasto ? (gasto.nota || "") : "";
 
   // Gastos cargados antes de que existiera "forma de pago" no tienen el
   // campo guardado — se muestran como Efectivo por default (no se puede
   // inventar cómo se pagaron los viejos).
-  mixtoUltimoEditado = null;
+  state.mixtoUltimoEditado = null;
   $("#input-mixto-efectivo").value = gasto && gasto.montoEfectivo != null ? formatMoneyValue(gasto.montoEfectivo) : "";
   $("#input-mixto-digital").value = gasto && gasto.montoDigital != null ? formatMoneyValue(gasto.montoDigital) : "";
   selectFormaPago(gasto ? (gasto.formaPago || "efectivo") : "efectivo");
@@ -2361,14 +2279,14 @@ function openModal(gasto, opts) {
     // Precarga las fotos que ya tenía para que se puedan ver, sacar o
     // completar hasta el máximo — no se suben de nuevo, solo se muestran
     // (fotosDeGasto ya entiende el formato viejo de una sola foto).
-    fotosGastoModal = fotosDeGasto(gasto).map(f => ({ tipo: "existente", url: f.url, path: f.path }));
+    state.fotosGastoModal = fotosDeGasto(gasto).map(f => ({ tipo: "existente", url: f.url, path: f.path }));
     renderFotoStrip();
   }
 
   $("#modal-add-title").textContent = gasto ? "Editar gasto" : "Nuevo gasto";
   $("#btn-save-add").textContent = gasto ? "Guardar cambios" : "Guardar gasto";
   $("#campo-pagador").classList.toggle("hidden", !gasto);
-  $$("#pagador-options .pagador-chip").forEach(c => c.classList.toggle("selected", c.textContent === selectedPagador));
+  $$("#pagador-options .pagador-chip").forEach(c => c.classList.toggle("selected", c.textContent === state.selectedPagador));
   $("#modal-error").classList.add("hidden");
   $("#modal-add").classList.add("active");
   setTimeout(() => $("#input-importe").focus(), 150);
@@ -2376,7 +2294,7 @@ function openModal(gasto, opts) {
 
 function closeModal() {
   $("#modal-add").classList.remove("active");
-  editingGastoId = null;
+  state.editingGastoId = null;
   resetFotoField(); // libera los object URL de las fotos elegidas, se cancele o se haya guardado
 }
 
@@ -2398,14 +2316,14 @@ async function saveGasto() {
     errEl.classList.remove("hidden");
     return;
   }
-  if (!selectedPagador) {
+  if (!state.selectedPagador) {
     errEl.textContent = "Elegí quién pagó.";
     errEl.classList.remove("hidden");
     return;
   }
 
   let montoEfectivo = null, montoDigital = null;
-  if (selectedFormaPago === "mixto") {
+  if (state.selectedFormaPago === "mixto") {
     montoEfectivo = parseMoneyInput($("#input-mixto-efectivo").value);
     montoDigital = parseMoneyInput($("#input-mixto-digital").value);
     if (!Number.isFinite(montoEfectivo) || !Number.isFinite(montoDigital) || montoEfectivo < 0 || montoDigital < 0) {
@@ -2421,8 +2339,8 @@ async function saveGasto() {
   }
 
   const btn = $("#btn-save-add");
-  const isEdit = !!editingGastoId;
-  const fotosNuevas = fotosGastoModal.filter(f => f.tipo === "nueva");
+  const isEdit = !!state.editingGastoId;
+  const fotosNuevas = state.fotosGastoModal.filter(f => f.tipo === "nueva");
   btn.disabled = true;
   btn.textContent = fotosNuevas.length ? "Subiendo fotos…" : "Guardando…";
 
@@ -2434,15 +2352,15 @@ async function saveGasto() {
     const fotosSubidas = [];
     for (const f of fotosNuevas) {
       try {
-        const path = `recibos/${negocioActual}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
-        const storageRef = fbSdk.ref(storage, path);
+        const path = `recibos/${state.negocioActual}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
+        const storageRef = state.fbSdk.ref(state.storage, path);
         const TIMEOUT_MSG = "La subida de una foto tardó demasiado.";
         await conTimeout(
-          fbSdk.uploadBytes(storageRef, f.blob, { contentType: "image/jpeg" }),
+          state.fbSdk.uploadBytes(storageRef, f.blob, { contentType: "image/jpeg" }),
           25000,
           TIMEOUT_MSG
         );
-        const url = await conTimeout(fbSdk.getDownloadURL(storageRef), 15000, TIMEOUT_MSG);
+        const url = await conTimeout(state.fbSdk.getDownloadURL(storageRef), 15000, TIMEOUT_MSG);
         fotosSubidas.push({ url, path });
       } catch (fotoErr) {
         console.error("No se pudo subir una foto, se guarda el gasto sin ella:", fotoErr);
@@ -2451,7 +2369,7 @@ async function saveGasto() {
     }
     if (fotosNuevas.length) btn.textContent = "Guardando…";
 
-    const fotosExistentesConservadas = fotosGastoModal
+    const fotosExistentesConservadas = state.fotosGastoModal
       .filter(f => f.tipo === "existente")
       .map(f => ({ url: f.url, path: f.path }));
     const fotosFinales = fotosExistentesConservadas.concat(fotosSubidas);
@@ -2461,25 +2379,25 @@ async function saveGasto() {
       descripcion,
       categoria,
       nota,
-      pagadoPor: selectedPagador,
-      negocio: negocioActual,
+      pagadoPor: state.selectedPagador,
+      negocio: state.negocioActual,
       faltaAbonar: $("#input-falta-abonar").checked,
       // Un colaborador ni ve el checkbox (ver openModal) — esAdmin acá
       // asegura que nunca quede en true por un valor colgado del campo.
-      soloAdmin: esAdmin ? $("#input-gasto-admin").checked : false,
-      fecha: fechaStr ? new Date(fechaStr + "T12:00:00") : fbSdk.serverTimestamp(),
-      formaPago: selectedFormaPago
+      soloAdmin: state.esAdmin ? $("#input-gasto-admin").checked : false,
+      fecha: fechaStr ? new Date(fechaStr + "T12:00:00") : state.fbSdk.serverTimestamp(),
+      formaPago: state.selectedFormaPago
     };
     // montoEfectivo/montoDigital solo existen si es Mixto — si se edita un
     // gasto y se cambia a Efectivo/Digital "puro", hay que borrar el
     // desglose viejo explícitamente (updateDoc no toca campos que no se
     // le pasan, así que quedaría un desglose stale sin esto).
-    if (selectedFormaPago === "mixto") {
+    if (state.selectedFormaPago === "mixto") {
       gastoData.montoEfectivo = montoEfectivo;
       gastoData.montoDigital = montoDigital;
     } else if (isEdit) {
-      gastoData.montoEfectivo = fbSdk.deleteField();
-      gastoData.montoDigital = fbSdk.deleteField();
+      gastoData.montoEfectivo = state.fbSdk.deleteField();
+      gastoData.montoDigital = state.fbSdk.deleteField();
     }
     // `fotos` reemplaza al formato viejo (fotoUrl/fotoPath, una sola
     // foto) — se escribe cada vez que el gasto queda con alguna foto, así
@@ -2488,29 +2406,29 @@ async function saveGasto() {
     if (fotosFinales.length) {
       gastoData.fotos = fotosFinales;
       if (isEdit) {
-        gastoData.fotoUrl = fbSdk.deleteField();
-        gastoData.fotoPath = fbSdk.deleteField();
+        gastoData.fotoUrl = state.fbSdk.deleteField();
+        gastoData.fotoPath = state.fbSdk.deleteField();
       }
-    } else if (isEdit && fotosGastoABorrar.length) {
+    } else if (isEdit && state.fotosGastoABorrar.length) {
       // Se sacaron todas las fotos que tenía, sin agregar ninguna nueva.
-      gastoData.fotos = fbSdk.deleteField();
-      gastoData.fotoUrl = fbSdk.deleteField();
-      gastoData.fotoPath = fbSdk.deleteField();
+      gastoData.fotos = state.fbSdk.deleteField();
+      gastoData.fotoUrl = state.fbSdk.deleteField();
+      gastoData.fotoPath = state.fbSdk.deleteField();
     }
 
     if (isEdit) {
-      await fbSdk.updateDoc(fbSdk.doc(db, "gastos", editingGastoId), gastoData);
+      await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "gastos", state.editingGastoId), gastoData);
     } else {
-      gastoData.creadoEn = fbSdk.serverTimestamp();
-      await fbSdk.addDoc(fbSdk.collection(db, "gastos"), gastoData);
+      gastoData.creadoEn = state.fbSdk.serverTimestamp();
+      await state.fbSdk.addDoc(state.fbSdk.collection(state.db, "gastos"), gastoData);
     }
 
     // Recién ahora que el gasto quedó guardado se borran del Storage las
     // fotos que se sacaron en este modal — si algo de arriba falla antes
     // de llegar acá, no se pierde ninguna foto todavía referenciada.
-    for (const path of fotosGastoABorrar) {
+    for (const path of state.fotosGastoABorrar) {
       try {
-        await fbSdk.deleteObject(fbSdk.ref(storage, path));
+        await state.fbSdk.deleteObject(state.fbSdk.ref(state.storage, path));
       } catch (e) {
         console.warn("No se pudo borrar una foto quitada:", e.message);
       }
@@ -2539,19 +2457,19 @@ async function saveGasto() {
 // (a diferencia de limpiarFotosVencidas, que solo borra la foto).
 async function deleteGasto(id) {
   if (!confirm("¿Borrar este gasto? No se puede deshacer.")) return;
-  const gasto = gastos.find(g => g.id === id);
+  const gasto = state.gastos.find(g => g.id === id);
   try {
     if (gasto) {
       for (const f of fotosDeGasto(gasto)) {
         if (!f.path) continue;
         try {
-          await fbSdk.deleteObject(fbSdk.ref(storage, f.path));
+          await state.fbSdk.deleteObject(state.fbSdk.ref(state.storage, f.path));
         } catch (e) {
           console.warn("No se pudo borrar una foto del gasto:", e.message);
         }
       }
     }
-    await fbSdk.deleteDoc(fbSdk.doc(db, "gastos", id));
+    await state.fbSdk.deleteDoc(state.fbSdk.doc(state.db, "gastos", id));
     showToast("Gasto borrado");
   } catch (e) {
     console.error(e);
@@ -2563,7 +2481,7 @@ async function deleteGasto(id) {
 // directo, sin pasar por el modal de Editar.
 async function marcarAbonado(id) {
   try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "gastos", id), { faltaAbonar: false });
+    await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "gastos", id), { faltaAbonar: false });
     showToast("Gasto marcado como pagado ✅");
   } catch (e) {
     console.error(e);
@@ -2581,7 +2499,7 @@ function setDefaultFechaFact() {
 // selectedTurno. Se llama al abrir el modal y cada vez que se cambia la
 // fecha a mano.
 function actualizarChipsTurnoPorFecha() {
-  $$("#turno-options .pagador-chip").forEach(c => c.classList.toggle("selected", c.dataset.turno === selectedTurno));
+  $$("#turno-options .pagador-chip").forEach(c => c.classList.toggle("selected", c.dataset.turno === state.selectedTurno));
 }
 
 // Sin argumento: alta de un cierre nuevo (usa el turno/fecha "actuales").
@@ -2595,7 +2513,6 @@ function actualizarChipsTurnoPorFecha() {
 // orden, los últimos 2 campos que se tipearon A MANO (no los que ya se
 // autocompletaron) — con esos 2 se sabe cuál es el tercero a calcular.
 // Se reinicia cada vez que se abre el modal (ver openModalFacturado()).
-let facturadoUltimosEditados = [];
 
 const FACTURADO_CAMPO_ID = {
   total: "input-importe-fact",
@@ -2604,20 +2521,20 @@ const FACTURADO_CAMPO_ID = {
 };
 
 function registrarEdicionManualFacturado(campo) {
-  facturadoUltimosEditados = facturadoUltimosEditados.filter(c => c !== campo);
-  facturadoUltimosEditados.push(campo);
-  if (facturadoUltimosEditados.length > 2) facturadoUltimosEditados.shift();
+  state.facturadoUltimosEditados = state.facturadoUltimosEditados.filter(c => c !== campo);
+  state.facturadoUltimosEditados.push(campo);
+  if (state.facturadoUltimosEditados.length > 2) state.facturadoUltimosEditados.shift();
   calcularCampoFaltanteFacturado();
 }
 
 function calcularCampoFaltanteFacturado() {
-  if (facturadoUltimosEditados.length < 2) return; // todavía no hay 2 campos como para deducir el tercero
+  if (state.facturadoUltimosEditados.length < 2) return; // todavía no hay 2 campos como para deducir el tercero
   const valores = {
     total: parseMoneyInput($("#input-importe-fact").value),
     efectivo: parseMoneyInput($("#input-efectivo-fact").value),
     digital: parseMoneyInput($("#input-digital-fact").value),
   };
-  const [a, b] = facturadoUltimosEditados;
+  const [a, b] = state.facturadoUltimosEditados;
   if (!Number.isFinite(valores[a]) || !Number.isFinite(valores[b])) return;
 
   const faltante = ["total", "efectivo", "digital"].find(c => c !== a && c !== b);
@@ -2632,12 +2549,12 @@ function calcularCampoFaltanteFacturado() {
 }
 
 function openModalFacturado(cierre, preset) {
-  editingCierreId = cierre ? cierre.id : null;
+  state.editingCierreId = cierre ? cierre.id : null;
   // Mismo criterio que en Nuevo gasto (ver openModal): un cierre nuevo
   // queda a nombre de quien está identificado en este celular, sin
   // preguntar. Al editar uno existente sí se puede reasignar.
-  selectedRegistrador = cierre ? cierre.registradoPor : usuarioActual;
-  selectedTurno = cierre ? (cierre.turno || null) : (preset ? preset.turno : turnoActual());
+  state.selectedRegistrador = cierre ? cierre.registradoPor : state.usuarioActual;
+  state.selectedTurno = cierre ? (cierre.turno || null) : (preset ? preset.turno : turnoActual());
 
   $("#input-importe-fact").value = cierre ? formatMoneyValue(cierre.importe) : "";
   // Cierres cargados ANTES de que existiera el desglose Efectivo/Digital
@@ -2645,7 +2562,7 @@ function openModalFacturado(cierre, preset) {
   // completen de nuevo (no se puede inventar cómo se repartía antes).
   $("#input-efectivo-fact").value = cierre && cierre.efectivo != null ? formatMoneyValue(cierre.efectivo) : "";
   $("#input-digital-fact").value = cierre && cierre.digital != null ? formatMoneyValue(cierre.digital) : "";
-  facturadoUltimosEditados = [];
+  state.facturadoUltimosEditados = [];
   if (cierre) {
     $("#input-fecha-fact").value = fechaLocalISO(fechaDeRegistro(cierre));
   } else if (preset) {
@@ -2657,7 +2574,7 @@ function openModalFacturado(cierre, preset) {
   $("#modal-fact-title").textContent = cierre ? "Editar cierre" : "Nuevo cierre";
   $("#btn-save-facturado").textContent = cierre ? "Guardar cambios" : "Guardar";
   $("#campo-pagador-fact").classList.toggle("hidden", !cierre);
-  $$("#pagador-options-fact .pagador-chip").forEach(c => c.classList.toggle("selected", c.textContent === selectedRegistrador));
+  $$("#pagador-options-fact .pagador-chip").forEach(c => c.classList.toggle("selected", c.textContent === state.selectedRegistrador));
   actualizarChipsTurnoPorFecha();
   resetFotoFieldFact(); // editar un cierre no toca su foto salvo que se elija una nueva
   $("#modal-fact-error").classList.add("hidden");
@@ -2667,7 +2584,7 @@ function openModalFacturado(cierre, preset) {
 
 function closeModalFacturado() {
   $("#modal-add-facturado").classList.remove("active");
-  editingCierreId = null;
+  state.editingCierreId = null;
 }
 
 async function saveCierre() {
@@ -2716,38 +2633,38 @@ async function saveCierre() {
     errEl.classList.remove("hidden");
     return;
   }
-  if (!selectedTurno) {
+  if (!state.selectedTurno) {
     errEl.textContent = "Elegí el turno.";
     errEl.classList.remove("hidden");
     return;
   }
-  if (!selectedRegistrador) {
+  if (!state.selectedRegistrador) {
     errEl.textContent = "Elegí quién lo cargó.";
     errEl.classList.remove("hidden");
     return;
   }
 
   const btn = $("#btn-save-facturado");
-  const isEdit = !!editingCierreId;
+  const isEdit = !!state.editingCierreId;
   btn.disabled = true;
-  btn.textContent = selectedFotoFacturadoBlob ? "Subiendo foto…" : "Guardando…";
+  btn.textContent = state.selectedFotoFacturadoBlob ? "Subiendo foto…" : "Guardando…";
 
   try {
     // Mismo criterio que saveGasto(): si la foto falla o tarda demasiado,
     // el cierre se guarda igual sin ella — mejor un cierre sin foto que
     // un cierre perdido.
     let fotoUrl = null, fotoPath = null, fotoFallo = false;
-    if (selectedFotoFacturadoBlob) {
+    if (state.selectedFotoFacturadoBlob) {
       try {
-        fotoPath = `cierres/${negocioActual}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
-        const storageRef = fbSdk.ref(storage, fotoPath);
+        fotoPath = `cierres/${state.negocioActual}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
+        const storageRef = state.fbSdk.ref(state.storage, fotoPath);
         const TIMEOUT_MSG = "La subida de la foto tardó demasiado.";
         await conTimeout(
-          fbSdk.uploadBytes(storageRef, selectedFotoFacturadoBlob, { contentType: "image/jpeg" }),
+          state.fbSdk.uploadBytes(storageRef, state.selectedFotoFacturadoBlob, { contentType: "image/jpeg" }),
           25000,
           TIMEOUT_MSG
         );
-        fotoUrl = await conTimeout(fbSdk.getDownloadURL(storageRef), 15000, TIMEOUT_MSG);
+        fotoUrl = await conTimeout(state.fbSdk.getDownloadURL(storageRef), 15000, TIMEOUT_MSG);
       } catch (fotoErr) {
         console.error("No se pudo subir la foto, se guarda el cierre sin ella:", fotoErr);
         fotoFallo = true;
@@ -2760,10 +2677,10 @@ async function saveCierre() {
       importe,
       efectivo,
       digital,
-      turno: selectedTurno,
-      registradoPor: selectedRegistrador,
-      negocio: negocioActual,
-      fecha: fechaStr ? new Date(fechaStr + "T12:00:00") : fbSdk.serverTimestamp()
+      turno: state.selectedTurno,
+      registradoPor: state.selectedRegistrador,
+      negocio: state.negocioActual,
+      fecha: fechaStr ? new Date(fechaStr + "T12:00:00") : state.fbSdk.serverTimestamp()
     };
     // Solo se tocan fotoUrl/fotoPath si se eligió una foto nueva — al
     // editar, updateDoc no toca los campos que no se le pasan, así que la
@@ -2773,10 +2690,10 @@ async function saveCierre() {
       data.fotoPath = fotoPath;
     }
     if (isEdit) {
-      await fbSdk.updateDoc(fbSdk.doc(db, "facturacion", editingCierreId), data);
+      await state.fbSdk.updateDoc(state.fbSdk.doc(state.db, "facturacion", state.editingCierreId), data);
     } else {
-      data.creadoEn = fbSdk.serverTimestamp();
-      await fbSdk.addDoc(fbSdk.collection(db, "facturacion"), data);
+      data.creadoEn = state.fbSdk.serverTimestamp();
+      await state.fbSdk.addDoc(state.fbSdk.collection(state.db, "facturacion"), data);
     }
     closeModalFacturado();
     if (fotoFallo) {
@@ -2798,16 +2715,16 @@ async function saveCierre() {
 // Storage si tenía una (mismo criterio que deleteGasto).
 async function deleteCierre(id) {
   if (!confirm("¿Borrar este cierre? No se puede deshacer.")) return;
-  const cierre = facturaciones.find(x => x.id === id);
+  const cierre = state.facturaciones.find(x => x.id === id);
   try {
     if (cierre && cierre.fotoPath) {
       try {
-        await fbSdk.deleteObject(fbSdk.ref(storage, cierre.fotoPath));
+        await state.fbSdk.deleteObject(state.fbSdk.ref(state.storage, cierre.fotoPath));
       } catch (e) {
         console.warn("No se pudo borrar la foto del cierre:", e.message);
       }
     }
-    await fbSdk.deleteDoc(fbSdk.doc(db, "facturacion", id));
+    await state.fbSdk.deleteDoc(state.fbSdk.doc(state.db, "facturacion", id));
     showToast("Cierre borrado");
   } catch (e) {
     console.error(e);
@@ -2873,8 +2790,8 @@ function getColaboradorInputs() {
 // Guarda config + socios en este navegador y entra a la app.
 async function finalizeSetup(config) {
   localStorage.setItem(LS_CONFIG_KEY, JSON.stringify(config));
-  localStorage.setItem(LS_SOCIOS_CACHE, JSON.stringify(socios));
-  localStorage.setItem(LS_COLAB_CACHE, JSON.stringify(colaboradores));
+  localStorage.setItem(LS_SOCIOS_CACHE, JSON.stringify(state.socios));
+  localStorage.setItem(LS_COLAB_CACHE, JSON.stringify(state.colaboradores));
   bootApp();
 }
 
@@ -2894,20 +2811,20 @@ async function handleSetupConnect() {
     statusEl.textContent = "Conectando…";
     await initFirebase(config);
 
-    const socioDocRef = fbSdk.doc(db, "config", "socios");
-    const snap = await fbSdk.getDoc(socioDocRef);
+    const socioDocRef = state.fbSdk.doc(state.db, "config", "socios");
+    const snap = await state.fbSdk.getDoc(socioDocRef);
 
     if (snap.exists() && Array.isArray(snap.data().socios) && snap.data().socios.length > 0) {
       const data = snap.data();
-      socios = data.socios;
-      colaboradores = Array.isArray(data.colaboradores) ? data.colaboradores : [];
-      admins = Array.isArray(data.admins) ? data.admins : [];
-      pins = data.pins && typeof data.pins === "object" ? data.pins : {};
-      claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
+      state.socios = data.socios;
+      state.colaboradores = Array.isArray(data.colaboradores) ? data.colaboradores : [];
+      state.admins = Array.isArray(data.admins) ? data.admins : [];
+      state.pins = data.pins && typeof data.pins === "object" ? data.pins : {};
+      state.claveMaestraAdmin = typeof data.claveMaestraAdmin === "string" ? data.claveMaestraAdmin : "";
       statusEl.textContent = "";
       await finalizeSetup(config);
     } else {
-      pendingFirebaseConfig = config;
+      state.pendingFirebaseConfig = config;
       statusEl.textContent = "";
       $("#setup-step-firebase").classList.add("hidden");
       $("#setup-step-socios").classList.remove("hidden");
@@ -2940,18 +2857,18 @@ async function handleSetupGuardar() {
 
   btn.disabled = true;
   try {
-    const socioDocRef = fbSdk.doc(db, "config", "socios");
-    socios = [ownerName];
-    colaboradores = colabNames;
-    admins = [ownerName]; // único dueño — siempre admin, no hace falta elegir
-    pins = {};
+    const socioDocRef = state.fbSdk.doc(state.db, "config", "socios");
+    state.socios = [ownerName];
+    state.colaboradores = colabNames;
+    state.admins = [ownerName]; // único dueño — siempre admin, no hace falta elegir
+    state.pins = {};
     // Clave compartida para que los admins creen su PIN la primera vez
     // (ver openPinModal/confirmPinModal) — se puede cambiar después desde
     // Ajustes sin afectar los PIN ya creados. Importa sobre todo si más
     // adelante se suma otro admin además del dueño original.
-    claveMaestraAdmin = "llavez";
-    await fbSdk.setDoc(socioDocRef, { socios, colaboradores, admins, pins, claveMaestraAdmin });
-    await finalizeSetup(pendingFirebaseConfig);
+    state.claveMaestraAdmin = "llavez";
+    await state.fbSdk.setDoc(socioDocRef, { socios: state.socios, colaboradores: state.colaboradores, admins: state.admins, pins: state.pins, claveMaestraAdmin: state.claveMaestraAdmin });
+    await finalizeSetup(state.pendingFirebaseConfig);
   } catch (e) {
     console.error(e);
     errEl.textContent = "No se pudo guardar. Revisá tu conexión.";
@@ -2962,17 +2879,16 @@ async function handleSetupGuardar() {
 }
 
 // ---------- Instalación PWA ----------
-let deferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
-  deferredInstallPrompt = e;
+  state.deferredInstallPrompt = e;
   $("#btn-install").classList.remove("hidden");
 });
 $("#btn-install")?.addEventListener("click", async () => {
-  if (!deferredInstallPrompt) return;
-  deferredInstallPrompt.prompt();
-  await deferredInstallPrompt.userChoice;
-  deferredInstallPrompt = null;
+  if (!state.deferredInstallPrompt) return;
+  state.deferredInstallPrompt.prompt();
+  await state.deferredInstallPrompt.userChoice;
+  state.deferredInstallPrompt = null;
   $("#btn-install").classList.add("hidden");
 });
 
@@ -3029,7 +2945,7 @@ function wireEvents() {
   });
   $("#pin-input-1").addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
-    if (pinFlowMode === "create") $("#pin-input-2").focus();
+    if (state.pinFlowMode === "create") $("#pin-input-2").focus();
     else confirmPinModal();
   });
   $("#pin-input-2").addEventListener("keydown", (e) => {
@@ -3055,21 +2971,21 @@ function wireEvents() {
   $("#input-mixto-digital").addEventListener("change", () => registrarEdicionMixto("digital"));
   $("#input-importe").addEventListener("change", calcularCampoMixtoFaltante);
   $("#btn-gastos-mes-anterior").addEventListener("click", () => {
-    gastosMesOffset--;
+    state.gastosMesOffset--;
     renderGastos();
   });
   $("#btn-gastos-mes-siguiente").addEventListener("click", () => {
-    if (gastosMesOffset >= 0) return;
-    gastosMesOffset++;
+    if (state.gastosMesOffset >= 0) return;
+    state.gastosMesOffset++;
     renderGastos();
   });
   $("#btn-facturado-mes-anterior").addEventListener("click", () => {
-    facturadoMesOffset--;
+    state.facturadoMesOffset--;
     renderFacturado();
   });
   $("#btn-facturado-mes-siguiente").addEventListener("click", () => {
-    if (facturadoMesOffset >= 0) return;
-    facturadoMesOffset++;
+    if (state.facturadoMesOffset >= 0) return;
+    state.facturadoMesOffset++;
     renderFacturado();
   });
   $("#btn-export-gastos").addEventListener("click", exportGastosCSV);
@@ -3081,22 +2997,22 @@ function wireEvents() {
   $("#btn-back-to-negocio").addEventListener("click", () => showScreen("screen-negocio"));
   $("#btn-back-to-seccion-resumen").addEventListener("click", volverASeccion);
   $("#btn-mes-anterior").addEventListener("click", () => {
-    resumenMesOffset--;
+    state.resumenMesOffset--;
     renderResumen();
   });
   $("#btn-mes-siguiente").addEventListener("click", () => {
-    if (resumenMesOffset >= 0) return;
-    resumenMesOffset++;
+    if (state.resumenMesOffset >= 0) return;
+    state.resumenMesOffset++;
     renderResumen();
   });
   $("#btn-back-to-seccion-gastosadmin").addEventListener("click", volverASeccion);
   $("#btn-gastos-admin-mes-anterior").addEventListener("click", () => {
-    gastosAdminMesOffset--;
+    state.gastosAdminMesOffset--;
     renderGastosAdmin();
   });
   $("#btn-gastos-admin-mes-siguiente").addEventListener("click", () => {
-    if (gastosAdminMesOffset >= 0) return;
-    gastosAdminMesOffset++;
+    if (state.gastosAdminMesOffset >= 0) return;
+    state.gastosAdminMesOffset++;
     renderGastosAdmin();
   });
   $("#fab-add-gastos-admin").addEventListener("click", () => openModal(null, { soloAdmin: true }));
@@ -3104,15 +3020,15 @@ function wireEvents() {
   $("#turno-options").addEventListener("click", (e) => {
     const chip = e.target.closest(".pagador-chip");
     if (!chip) return;
-    selectedTurno = chip.dataset.turno;
+    state.selectedTurno = chip.dataset.turno;
     $$("#turno-options .pagador-chip").forEach(c => c.classList.remove("selected"));
     chip.classList.add("selected");
     // Solo en un cierre NUEVO (no al editar uno existente): si se cambia
     // a mano el turno, la fecha propuesta se reajusta sola (ver
     // fechaParaTurno) — elegir "Noche" antes de las 22hs de hoy se
     // refiere a la noche de AYER, no a una de esta noche que ni empezó.
-    if (!editingCierreId) {
-      $("#input-fecha-fact").value = fechaLocalISO(fechaParaTurno(selectedTurno));
+    if (!state.editingCierreId) {
+      $("#input-fecha-fact").value = fechaLocalISO(fechaParaTurno(state.selectedTurno));
     }
   });
   $("#input-fecha-fact").addEventListener("change", actualizarChipsTurnoPorFecha);
@@ -3130,12 +3046,12 @@ function wireEvents() {
   $("#input-digital-fact").addEventListener("change", () => registrarEdicionManualFacturado("digital"));
 
   $("#btn-ideas-main").addEventListener("click", () => {
-    seccionActual = "ideas";
+    state.seccionActual = "ideas";
     renderIdeas();
     showScreen("screen-ideas");
   });
   $("#btn-back-from-ideas").addEventListener("click", () => {
-    if (seccionActual === "ideas") volverASeccion();
+    if (state.seccionActual === "ideas") volverASeccion();
     else showScreen("screen-negocio");
   });
   $("#fab-add-idea").addEventListener("click", () => openModalIdea());
@@ -3158,7 +3074,7 @@ function wireEvents() {
 
   // Reportes de Mantenimiento — mismo wiring que Ideas, ver handleIdeaListClick.
   $("#btn-back-from-reportes").addEventListener("click", () => {
-    if (seccionActual === "mantenimiento") volverASeccion();
+    if (state.seccionActual === "mantenimiento") volverASeccion();
     else showScreen("screen-negocio");
   });
   $("#fab-add-reporte").addEventListener("click", () => openModalReporte());
@@ -3210,7 +3126,7 @@ function wireEvents() {
     const files = Array.from(e.target.files || []);
     e.target.value = ""; // permite elegir el mismo archivo de nuevo más adelante si hace falta
     if (!files.length) return;
-    const espacio = MAX_FOTOS_GASTO - fotosGastoModal.length;
+    const espacio = MAX_FOTOS_GASTO - state.fotosGastoModal.length;
     const aProcesar = files.slice(0, Math.max(0, espacio));
     if (files.length > aProcesar.length) {
       showToast(`Máximo ${MAX_FOTOS_GASTO} fotos por gasto.`);
@@ -3218,7 +3134,7 @@ function wireEvents() {
     for (const file of aProcesar) {
       try {
         const blob = await compressImage(file);
-        fotosGastoModal.push({ tipo: "nueva", blob, previewUrl: URL.createObjectURL(blob) });
+        state.fotosGastoModal.push({ tipo: "nueva", blob, previewUrl: URL.createObjectURL(blob) });
       } catch (err) {
         console.error(err);
         showToast("No se pudo procesar una de las fotos.");
@@ -3233,8 +3149,8 @@ function wireEvents() {
   $("#foto-strip").addEventListener("click", (e) => {
     const btn = e.target.closest(".foto-remove-btn");
     if (!btn) return;
-    const [removida] = fotosGastoModal.splice(Number(btn.dataset.idx), 1);
-    if (removida.tipo === "existente" && removida.path) fotosGastoABorrar.push(removida.path);
+    const [removida] = state.fotosGastoModal.splice(Number(btn.dataset.idx), 1);
+    if (removida.tipo === "existente" && removida.path) state.fotosGastoABorrar.push(removida.path);
     if (removida.tipo === "nueva") URL.revokeObjectURL(removida.previewUrl);
     renderFotoStrip();
   });
@@ -3253,8 +3169,8 @@ function wireEvents() {
     const file = e.target.files[0];
     if (!file) return;
     try {
-      selectedFotoFacturadoBlob = await compressImage(file);
-      $("#foto-preview-img-fact").src = URL.createObjectURL(selectedFotoFacturadoBlob);
+      state.selectedFotoFacturadoBlob = await compressImage(file);
+      $("#foto-preview-img-fact").src = URL.createObjectURL(state.selectedFotoFacturadoBlob);
       $("#foto-preview-wrap-fact").classList.remove("hidden");
       $("#foto-btns-row-fact").classList.add("hidden");
     } catch (err) {
@@ -3270,13 +3186,13 @@ function wireEvents() {
   function onGastoListClick(e) {
     const fotoBtn = e.target.closest(".foto-link");
     if (fotoBtn) {
-      const g = gastos.find(x => x.id === fotoBtn.dataset.id);
+      const g = state.gastos.find(x => x.id === fotoBtn.dataset.id);
       if (g) abrirVisorFotos(fotosDeGasto(g));
       return;
     }
     const editBtn = e.target.closest(".gasto-edit-btn");
     if (editBtn) {
-      const g = gastos.find(x => x.id === editBtn.dataset.id);
+      const g = state.gastos.find(x => x.id === editBtn.dataset.id);
       if (g) openModal(g);
       return;
     }
@@ -3306,7 +3222,7 @@ function wireEvents() {
     if (fotoBtn) { window.open(fotoBtn.dataset.url, "_blank", "noopener"); return; }
     const editBtn = e.target.closest(".cierre-edit-btn");
     if (editBtn) {
-      const c = facturaciones.find(x => x.id === editBtn.dataset.id);
+      const c = state.facturaciones.find(x => x.id === editBtn.dataset.id);
       if (c) openModalFacturado(c);
       return;
     }
@@ -3322,7 +3238,7 @@ function wireEvents() {
   $("#fotos-grupos").addEventListener("click", (e) => {
     const thumb = e.target.closest(".foto-thumb-link");
     if (!thumb) return;
-    const g = gastos.find(x => x.id === thumb.dataset.id);
+    const g = state.gastos.find(x => x.id === thumb.dataset.id);
     if (g) abrirVisorFotos(fotosDeGasto(g), Number(thumb.dataset.idx));
   });
   $("#btn-ver-fotos").addEventListener("click", () => {
@@ -3352,10 +3268,10 @@ async function attemptReconnect() {
   }
 
   if (cachedSocios) {
-    try { socios = JSON.parse(cachedSocios); } catch (_) {}
+    try { state.socios = JSON.parse(cachedSocios); } catch (_) {}
   }
   if (cachedColab) {
-    try { colaboradores = JSON.parse(cachedColab); } catch (_) {}
+    try { state.colaboradores = JSON.parse(cachedColab); } catch (_) {}
   }
 
   $("#loading-msg").textContent = "Cargando…";
@@ -3365,7 +3281,7 @@ async function attemptReconnect() {
 
   try {
     const config = savedConfig ? JSON.parse(savedConfig) : DEFAULT_FIREBASE_CONFIG;
-    await connectAndBoot(config, socios, colaboradores);
+    await connectAndBoot(config, state.socios, state.colaboradores);
     if (!savedConfig) localStorage.setItem(LS_CONFIG_KEY, JSON.stringify(config));
   } catch (e) {
     console.error("Error reconectando:", e);
