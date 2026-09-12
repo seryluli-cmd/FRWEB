@@ -326,7 +326,7 @@
 
       <div class="card hidden" id="ajustes-categorias-card">
         <h2>Categorías de gastos</h2>
-        <p class="muted small">Las marcadas 🔒 "Privada" no las ven los colaboradores — ni en la lista de Gastos, ni en el CSV exportado. Se pueden cargar y ver desde "Gastos S/Admin". Sí se suman en Resumen mensual (ya es solo para admin).</p>
+        <p class="muted small">Para marcar un gasto como privado (que no lo vean los colaboradores) usá el checkbox "🔒 Gasto Admin" al cargarlo o editarlo — no hace falta una categoría aparte para eso.</p>
         <div id="ajustes-categorias-list" class="ajustes-socios-list"></div>
 
         <div style="margin-top:14px;">
@@ -334,7 +334,6 @@
             <label for="input-nueva-categoria">Nueva categoría</label>
             <input type="text" id="input-nueva-categoria" placeholder="Ej: Impuestos" maxlength="30">
           </div>
-          <label class="checkbox-label"><input type="checkbox" id="input-nueva-categoria-privada"> 🔒 Privada (solo admin)</label>
           <button type="button" id="btn-agregar-categoria" class="btn-secondary" style="margin-top:10px;">+ Agregar categoría</button>
         </div>
       </div>
@@ -641,6 +640,11 @@
 
       <div class="field">
         <label class="checkbox-label"><input type="checkbox" id="input-falta-abonar"> ⚠️ Falta abonar</label>
+      </div>
+
+      <!-- Solo visible para el admin (ver openModal en app.js) — un colaborador nunca puede marcar un gasto como privado. -->
+      <div class="field hidden" id="campo-gasto-admin">
+        <label class="checkbox-label"><input type="checkbox" id="input-gasto-admin"> 🔒 Gasto Admin (no lo ven los colaboradores)</label>
       </div>
 
       <div class="field" id="campo-pagador">

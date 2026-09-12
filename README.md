@@ -47,21 +47,21 @@ completas: son listas acotadas por naturaleza (no un registro por
 transacción diaria), no crecen de la misma forma.
 
 - **`config/socios`** (un solo documento) —
-  `{ socios: [string], colaboradores: string[], admins: string[], pins: { [nombre]: "1234" }, categoriasGastos: [{ nombre, soloAdmin }] }`.
+  `{ socios: [string], colaboradores: string[], admins: string[], pins: { [nombre]: "1234" }, categoriasGastos: string[] }`.
   `socios` tiene un único nombre (vos, el dueño) y `admins` siempre lo
   incluye — no hay checkbox de admin en el setup porque no hace falta
   elegir. El campo `colaboradores` se puede editar después desde Ajustes.
-- **`gastos`** — `{ importe, descripcion, categoria, pagadoPor, negocio, fecha, creadoEn, nota?, faltaAbonar?, formaPago?, montoEfectivo?, montoDigital?, fotos? }`.
+- **`gastos`** — `{ importe, descripcion, categoria, pagadoPor, negocio, fecha, creadoEn, nota?, faltaAbonar?, soloAdmin?, formaPago?, montoEfectivo?, montoDigital?, fotos? }`.
   `fotos` es una lista de hasta 5 `{url, path}` (una factura puede tener
   varias hojas) — único lugar que la lee es `fotosDeGasto(g)`, que también
   entiende el formato viejo de una sola foto (`fotoUrl`/`fotoPath`, gastos
   cargados antes de este cambio) sin necesidad de migrarlos: se pasan solos
   al formato nuevo la próxima vez que se editan y guardan.
-  `categoria` es una de: Kiosko, Bebidas, Panchos, Art Limpieza, Servicios,
-  Alquiler, Mantenimiento Gral, Sueldos, Otros, Gastos Fijos (opciones fijas
-  en el `<select>` de `index.html`, no se guardan en Firestore). Es un gasto
-  más de la misma colección — `Gastos Fijos` no tiene esquema aparte, solo
-  permisos distintos (ver "Identidad y permisos" abajo).
+  `categoria` es el nombre de una categoría editable desde Ajustes →
+  "Categorías de gastos" (`categoriasGastos` arriba, no son opciones fijas
+  en el HTML) — no tiene ninguna noción de privacidad. `soloAdmin` sí es lo
+  que marca un gasto individual como privado (checkbox "🔒 Gasto Admin" en
+  el modal) — ver "Identidad y permisos" abajo.
 - **`facturacion`** — `{ importe, turno, registradoPor, negocio, fecha, creadoEn }`.
   `turno` es `"mañana"` | `"tarde"` | `"noche"` (constante `TURNOS` en app.js) —
   todos los días de la semana, domingo incluido, son 3 turnos por día, cada
@@ -135,28 +135,29 @@ tarjeta para entrar):
   `esAdmin`) — los colaboradores solo ven el total de "Hoy".
 
 **Categorías de gasto editables**: la lista de categorías (Kiosko, Bebidas,
-Alquiler, etc.) no está hardcodeada — vive en Firestore
-(`config/socios`, campo `categoriasGastos`, array de `{ nombre, soloAdmin }`)
-y los admin la editan desde Ajustes → "Categorías de gastos" (crear, borrar,
-marcar/desmarcar 🔒 "Privada"). `CATEGORIAS_GASTOS_DEFAULT` en app.js es la
-semilla con la que arranca una instalación nueva (y con la que se completa
-una vieja que todavía no tenía el campo, ver `listenSocios()`).
+Alquiler, etc.) no está hardcodeada — vive en Firestore (`config/socios`,
+campo `categoriasGastos`, array de nombres) y los admin la editan desde
+Ajustes → "Categorías de gastos" (crear, borrar). `CATEGORIAS_GASTOS_DEFAULT`
+en app.js es la semilla con la que arranca una instalación nueva (y con la
+que se completa una vieja que todavía no tenía el campo, ver
+`listenSocios()`). Una categoría no tiene ninguna noción de privacidad —
+eso es un flag aparte, por gasto individual (ver debajo).
 
-Las categorías marcadas **soloAdmin** (por default: Alquiler, Sueldos,
-Gastos Fijos — alquiler, sueldos fijos, etc. que el dueño no quiere que vean
-los colaboradores) solo pueden cargarse y verse siendo admin: el `<select>`
-de categoría (`renderCategoriaOptions()`) no ofrece esas opciones a
-colaboradores, y esos gastos se filtran de la lista y el total de la
-pantalla "Gastos" (`renderGastos()`) y del CSV exportado
-(`exportGastosCSV()`) cuando `!esAdmin` — ver `categoriaEsPrivada()`. Para
-cargarlos/verlos rápido sin scrollear entre los gastos públicos, tienen su
-propia pantalla **"Gastos S/Admin"** (`renderGastosAdmin()`, misma
-colección `gastos`, mismo formulario/edición/foto que la pantalla común,
-filtrado a categorías privadas) — no reemplaza la lista común: un admin que
-entra a "Gastos" sigue viendo también los privados mezclados, igual que
-siempre. En **Resumen mensual** (ya `soloAdmin`, ver arriba) no se filtran —
-entran en el total y en la rentabilidad como cualquier otro gasto, y
-aparecen como una categoría más en el desglose.
+**Gastos privados ("Gasto Admin")**: al cargar o editar un gasto, el admin
+(y solo el admin — un colaborador ni ve el campo) puede tildar el checkbox
+**"🔒 Gasto Admin"**, que guarda `soloAdmin: true` en ese gasto puntual —
+de cualquier categoría, no hace falta que la categoría sea especial.
+`renderGastos()` y `exportGastosCSV()` filtran los gastos con `soloAdmin`
+cuando `!esAdmin`, así un colaborador nunca los ve ni en la lista ni en el
+CSV. Para cargarlos/verlos rápido sin scrollear entre los gastos públicos,
+tienen su propia pantalla **"Gastos S/Admin"** (`renderGastosAdmin()`,
+misma colección `gastos`, mismo formulario/edición/foto que la pantalla
+común, filtrado a `soloAdmin: true`) — no reemplaza la lista común: un
+admin que entra a "Gastos" sigue viendo también los privados mezclados
+(con un aviso "🔒 Solo admin" en la fila para distinguirlos), igual que
+siempre. En **Resumen mensual** (ya `soloAdmin` la pantalla entera, ver
+arriba) no se filtra nada — entran en el total y en la rentabilidad como
+cualquier otro gasto.
 
 ⚠️ Este ocultamiento es solo de pantalla, igual que el PIN (ver más abajo)
 — no hay reglas de seguridad de Firestore en este repo, así que un

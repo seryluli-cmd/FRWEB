@@ -93,38 +93,19 @@ const NEGOCIOS = [
 const INVERSION_META = 55000000;
 
 // Categorías de gasto: lista editable por los admin desde Ajustes →
-// "Categorías de gastos" (ver renderAjustesCategorias). Cada categoría es
-// { nombre, soloAdmin } — las marcadas soloAdmin (alquiler, sueldos fijos,
-// etc. que el dueño no quiere que vean los colaboradores) son un gasto más
-// de la colección `gastos`, nada de esquema aparte, pero se filtran en los
-// 3 lugares donde un colaborador podría verlas (ver categoriaEsPrivada en
-// renderGastos, openModal y exportGastosCSV) y tienen su propia pantalla
-// "Gastos S/Admin" para cargarlas/verlas rápido sin admin de por medio. En
-// Resumen mensual (ya admin-only) no se filtra: entra en el total y en la
-// rentabilidad como cualquier otro gasto.
-// Se guardan en Firestore (config/socios, campo categoriasGastos) para que
-// los admin puedan crear/borrar/marcar privada una categoría sin tocar
-// código — ver listenSocios(). CATEGORIAS_GASTOS_DEFAULT es la semilla para
-// instalaciones viejas que todavía no tienen ese campo.
+// "Categorías de gastos" (ver renderAjustesCategorias) — simples nombres,
+// sin ninguna noción de privacidad acá (eso ahora es por gasto individual,
+// ver `soloAdmin` en el gasto más abajo, no en la categoría). Se guardan
+// en Firestore (config/socios, campo categoriasGastos) para que los admin
+// puedan crear/borrar una categoría sin tocar código — ver listenSocios().
+// CATEGORIAS_GASTOS_DEFAULT es la semilla para instalaciones viejas que
+// todavía no tienen ese campo.
 const CATEGORIAS_GASTOS_DEFAULT = [
-  { nombre: "Kiosko", soloAdmin: false },
-  { nombre: "Bebidas", soloAdmin: false },
-  { nombre: "Panchos", soloAdmin: false },
-  { nombre: "Art Limpieza", soloAdmin: false },
-  { nombre: "Servicios", soloAdmin: false },
-  { nombre: "Alquiler", soloAdmin: true },
-  { nombre: "Mantenimiento Gral", soloAdmin: false },
-  { nombre: "Sueldos", soloAdmin: true },
-  { nombre: "Otros", soloAdmin: false },
-  { nombre: "Gastos Fijos", soloAdmin: true }
+  "Kiosko", "Bebidas", "Panchos", "Art Limpieza", "Servicios",
+  "Alquiler", "Mantenimiento Gral", "Sueldos", "Otros"
 ];
 let categoriasGastos = CATEGORIAS_GASTOS_DEFAULT;
 let categoriasGastosSembrado = false; // evita reescribir el default más de una vez por sesión
-
-function categoriaEsPrivada(nombre) {
-  const cat = categoriasGastos.find(c => c.nombre === nombre);
-  return cat ? !!cat.soloAdmin : false;
-}
 
 let fbApp = null, auth = null, db = null, storage = null;
 const MAX_FOTOS_GASTO = 5; // una factura de varias hojas puede necesitar más de una foto — ver fotosDeGasto()
@@ -1036,6 +1017,13 @@ function crearGastoLi(g) {
     ? ` · <button type="button" class="meta-falta-abonar" data-id="${g.id}">⚠️ Falta abonar</button>`
     : "";
 
+  // Este gasto está marcado "Gasto Admin" (checkbox del modal) — en la
+  // lista de Gastos común (donde el admin ve todo, público y privado
+  // mezclado) esta marca es la única forma de distinguirlo a simple
+  // vista, ya que la categoría ya no implica privacidad. Solo se muestra
+  // al admin: un colaborador nunca llega a ver este gasto de todos modos.
+  const metaSoloAdmin = (esAdmin && g.soloAdmin) ? ` · 🔒 Solo admin` : "";
+
   // Notas largas hacían la fila del gasto muy alta en el celular — se
   // recortan a las primeras 2 palabras y el resto se ve tocando "Ver
   // detalle completo" (usa data-id, no el texto de la nota, para no
@@ -1060,7 +1048,7 @@ function crearGastoLi(g) {
       <div class="avatar" style="background:${payerColorVar(g.pagadoPor)}">${socioInitial(g.pagadoPor)}</div>
       <div class="info">
         <div class="desc">${escapeHtml(g.descripcion || "Sin descripción")}</div>
-        <div class="meta">${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} · ${escapeHtml(g.categoria || "Otros")} · Pagó ${escapeHtml(g.pagadoPor || "?")} · ${formaPagoLabel(g)}${metaFaltaAbonar}</div>
+        <div class="meta">${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} · ${escapeHtml(g.categoria || "Otros")} · Pagó ${escapeHtml(g.pagadoPor || "?")} · ${formaPagoLabel(g)}${metaFaltaAbonar}${metaSoloAdmin}</div>
         ${notaHtml}
       </div>
       <div class="amount">${money(g.importe)}</div>
@@ -1090,7 +1078,7 @@ function renderGastos() {
   $("#btn-gastos-mes-siguiente").disabled = esMesActual;
 
   const gastosMes = gastosDelNegocio().filter(g => {
-    if (!esAdmin && categoriaEsPrivada(g.categoria)) return false;
+    if (!esAdmin && g.soloAdmin) return false;
     const f = fechaDeRegistro(g);
     return f.getMonth() === targetMonth && f.getFullYear() === targetYear;
   });
@@ -1111,12 +1099,14 @@ function renderGastos() {
 }
 
 // Gastos S/Admin: mismo formulario/lista/edición/foto que Gastos común,
-// solo que filtrado a las categorías marcadas soloAdmin (alquiler, sueldos,
-// etc.) — pantalla propia, visible solo para admin (ver SECCIONES en
-// renderSeccionCards), para no mezclar lo privado con la lista que ven los
-// colaboradores. El total del mes SÍ sigue entrando en Resumen mensual (que
-// no filtra por categoría) — lo único que cambia acá es dónde se ve la
-// lista y quién puede verla.
+// solo que filtrado a los gastos marcados soloAdmin (checkbox "🔒 Gasto
+// Admin" en el modal, ver openModal — es un flag por gasto individual, no
+// por categoría, así cualquier categoría puede tener gastos públicos y
+// privados mezclados) — pantalla propia, visible solo para admin (ver
+// SECCIONES en renderSeccionCards), para no mezclar lo privado con la
+// lista que ven los colaboradores. El total del mes SÍ sigue entrando en
+// Resumen mensual (que no filtra nada) — lo único que cambia acá es dónde
+// se ve la lista y quién puede verla.
 function gastosAdminFechaBase() {
   const d = new Date();
   d.setDate(1);
@@ -1138,7 +1128,7 @@ function renderGastosAdmin() {
   $("#btn-gastos-admin-mes-siguiente").disabled = esMesActual;
 
   const gastosMes = gastosDelNegocio().filter(g => {
-    if (!categoriaEsPrivada(g.categoria)) return false;
+    if (!g.soloAdmin) return false;
     const f = fechaDeRegistro(g);
     return f.getMonth() === targetMonth && f.getFullYear() === targetYear;
   });
@@ -2279,24 +2269,21 @@ function renderAjustesSocios() {
 }
 
 // Lista de categorías de gasto en Ajustes — solo la ve/edita el admin
-// (crear, marcar/desmarcar "privada", borrar). Ver categoriasGastos y
-// categoriaEsPrivada más arriba.
+// (crear, borrar). Son simples nombres, sin noción de privacidad acá (ver
+// categoriasGastos más arriba) — lo privado ahora es el checkbox "Gasto
+// Admin" de cada gasto individual, no la categoría.
 function renderAjustesCategorias() {
   $("#ajustes-categorias-card").classList.toggle("hidden", !esAdmin);
   if (!esAdmin) return;
 
   const wrap = $("#ajustes-categorias-list");
   wrap.innerHTML = "";
-  categoriasGastos.forEach((cat) => {
+  categoriasGastos.forEach((nombre) => {
     const row = document.createElement("div");
     row.className = "ajustes-socio-row";
-    const badge = cat.soloAdmin ? `<span class="admin-badge">Privada</span>` : "";
     row.innerHTML = `
-      ${escapeHtml(cat.nombre)} ${badge}
-      <span style="margin-left:auto;display:flex;gap:4px;">
-        <button type="button" class="icon-btn categoria-toggle-btn" data-nombre="${escapeHtml(cat.nombre)}" aria-label="${cat.soloAdmin ? "Hacer pública" : "Hacer privada"}" title="${cat.soloAdmin ? "Hacer pública" : "Hacer privada"}">${cat.soloAdmin ? "🔒" : "🔓"}</button>
-        <button type="button" class="icon-btn danger categoria-remove-btn" data-nombre="${escapeHtml(cat.nombre)}" aria-label="Borrar categoría">🗑️</button>
-      </span>`;
+      ${escapeHtml(nombre)}
+      <button type="button" class="icon-btn danger categoria-remove-btn" data-nombre="${escapeHtml(nombre)}" aria-label="Borrar categoría" style="margin-left:auto;">🗑️</button>`;
     wrap.appendChild(row);
   });
 }
@@ -2305,30 +2292,18 @@ async function agregarCategoriaDesdeAjustes() {
   const input = $("#input-nueva-categoria");
   const nombre = input.value.trim();
   if (!nombre) return;
-  if (categoriasGastos.some(c => c.nombre === nombre)) {
+  if (categoriasGastos.includes(nombre)) {
     showToast("Esa categoría ya existe.");
     return;
   }
-  const soloAdmin = $("#input-nueva-categoria-privada").checked;
-  const nuevas = categoriasGastos.concat([{ nombre, soloAdmin }]);
+  const nuevas = categoriasGastos.concat([nombre]);
   try {
     await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), { categoriasGastos: nuevas });
     input.value = "";
-    $("#input-nueva-categoria-privada").checked = false;
     showToast("Categoría agregada ✅");
   } catch (e) {
     console.error(e);
     showToast("No se pudo agregar. Revisá tu conexión.");
-  }
-}
-
-async function toggleCategoriaPrivada(nombre) {
-  const nuevas = categoriasGastos.map(c => c.nombre === nombre ? { ...c, soloAdmin: !c.soloAdmin } : c);
-  try {
-    await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), { categoriasGastos: nuevas });
-  } catch (e) {
-    console.error(e);
-    showToast("No se pudo actualizar. Revisá tu conexión.");
   }
 }
 
@@ -2337,7 +2312,7 @@ async function toggleCategoriaPrivada(nombre) {
 // poder elegirse para gastos nuevos.
 async function quitarCategoria(nombre) {
   if (!confirm(`¿Borrar la categoría "${nombre}"? Los gastos que ya la tienen cargada no cambian, solo no se va a poder elegir de nuevo.`)) return;
-  const nuevas = categoriasGastos.filter(c => c.nombre !== nombre);
+  const nuevas = categoriasGastos.filter(c => c !== nombre);
   try {
     await fbSdk.updateDoc(fbSdk.doc(db, "config", "socios"), { categoriasGastos: nuevas });
     showToast("Categoría borrada");
@@ -2456,7 +2431,7 @@ function downloadCSV(filename, rows) {
 function exportGastosCSV() {
   const rows = [["Fecha", "Categoría", "Descripción", "Importe", "Pagado por", "Forma de pago", "Efectivo", "Digital", "Nota"]];
   gastosDelNegocio()
-    .filter(g => esAdmin || !categoriaEsPrivada(g.categoria))
+    .filter(g => esAdmin || !g.soloAdmin)
     .slice()
     .sort((a, b) => fechaDeRegistro(a) - fechaDeRegistro(b))
     .forEach(g => {
@@ -2577,31 +2552,26 @@ function calcularCampoMixtoFaltante() {
   }
 }
 
-// Reconstruye las <option> de "Categoría" según el contexto: soloPrivadas
-// (true desde "Gastos S/Admin" — ver renderGastosAdmin/openModal) muestra
-// solo categorías soloAdmin; si no, muestra las públicas + las privadas
-// para el admin (mismo criterio de siempre, generalizado — ver
-// categoriaEsPrivada). categoriaActual se agrega igual aunque ya no exista
-// en la lista (un admin la borró después de cargada), para no perder el
-// valor guardado de un gasto viejo al editarlo.
-function renderCategoriaOptions(soloPrivadas, categoriaActual) {
+// Reconstruye las <option> de "Categoría" — siempre todas las categorías
+// disponibles, para admin y colaborador por igual (la privacidad ahora es
+// un flag por gasto individual, ver el checkbox "Gasto Admin" en
+// openModal, no algo de la categoría). categoriaActual se agrega igual
+// aunque ya no exista en la lista (un admin la borró después de cargada),
+// para no perder el valor guardado de un gasto viejo al editarlo.
+function renderCategoriaOptions(categoriaActual) {
   const sel = $("#input-categoria");
-  let cats = categoriasGastos.filter(c => soloPrivadas ? c.soloAdmin : (!c.soloAdmin || esAdmin));
-  if (categoriaActual && !cats.some(c => c.nombre === categoriaActual)) {
-    cats = cats.concat([{ nombre: categoriaActual, soloAdmin: false }]);
+  let cats = categoriasGastos.slice();
+  if (categoriaActual && !cats.includes(categoriaActual)) {
+    cats = cats.concat([categoriaActual]);
   }
-  sel.innerHTML = cats.map(c => `<option value="${escapeHtml(c.nombre)}">${escapeHtml(c.nombre)}</option>`).join("");
+  sel.innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
   return cats.length;
 }
 
 function openModal(gasto, opts) {
-  // Al editar, se queda en el mismo "mundo" (privado o público) del gasto
-  // que ya tenía. Al crear, depende de desde dónde se abrió el modal (ver
-  // fab-add vs. fab-add-gastos-admin).
-  const soloPrivadas = gasto ? categoriaEsPrivada(gasto.categoria) : !!(opts && opts.soloPrivadas);
-  const cantCategorias = renderCategoriaOptions(soloPrivadas, gasto ? gasto.categoria : null);
+  const cantCategorias = renderCategoriaOptions(gasto ? gasto.categoria : null);
   if (!cantCategorias) {
-    showToast(soloPrivadas ? "Creá primero una categoría privada en Ajustes." : "Creá primero una categoría en Ajustes.");
+    showToast("Creá primero una categoría en Ajustes.");
     return;
   }
 
@@ -2616,6 +2586,13 @@ function openModal(gasto, opts) {
   $("#input-descripcion").value = gasto ? (gasto.descripcion || "") : "";
   if (gasto) $("#input-categoria").value = gasto.categoria || "Otros";
   $("#input-falta-abonar").checked = gasto ? !!gasto.faltaAbonar : false;
+  // "Gasto Admin" (soloAdmin): solo un admin puede ver este checkbox y
+  // tildarlo — un colaborador ni siquiera lo tiene en el modal, así que un
+  // gasto que carga nunca puede quedar marcado privado por accidente. Al
+  // abrir desde "Gastos S/Admin" (ver fab-add-gastos-admin) llega
+  // pre-tildado vía opts.soloAdmin, pero el admin lo puede destildar igual.
+  $("#campo-gasto-admin").classList.toggle("hidden", !esAdmin);
+  $("#input-gasto-admin").checked = gasto ? !!gasto.soloAdmin : !!(opts && opts.soloAdmin);
   $("#input-nota").value = gasto ? (gasto.nota || "") : "";
 
   // Gastos cargados antes de que existiera "forma de pago" no tienen el
@@ -2739,6 +2716,9 @@ async function saveGasto() {
       pagadoPor: selectedPagador,
       negocio: negocioActual,
       faltaAbonar: $("#input-falta-abonar").checked,
+      // Un colaborador ni ve el checkbox (ver openModal) — esAdmin acá
+      // asegura que nunca quede en true por un valor colgado del campo.
+      soloAdmin: esAdmin ? $("#input-gasto-admin").checked : false,
       fecha: fechaStr ? new Date(fechaStr + "T12:00:00") : fbSdk.serverTimestamp(),
       formaPago: selectedFormaPago
     };
@@ -3307,8 +3287,6 @@ function wireEvents() {
   });
   $("#btn-agregar-categoria").addEventListener("click", agregarCategoriaDesdeAjustes);
   $("#ajustes-categorias-list").addEventListener("click", (e) => {
-    const toggleBtn = e.target.closest(".categoria-toggle-btn");
-    if (toggleBtn) { toggleCategoriaPrivada(toggleBtn.dataset.nombre); return; }
     const removeBtn = e.target.closest(".categoria-remove-btn");
     if (removeBtn) quitarCategoria(removeBtn.dataset.nombre);
   });
@@ -3390,7 +3368,7 @@ function wireEvents() {
     gastosAdminMesOffset++;
     renderGastosAdmin();
   });
-  $("#fab-add-gastos-admin").addEventListener("click", () => openModal(null, { soloPrivadas: true }));
+  $("#fab-add-gastos-admin").addEventListener("click", () => openModal(null, { soloAdmin: true }));
   $("#fab-add-facturado").addEventListener("click", () => openModalFacturado());
   $("#turno-options").addEventListener("click", (e) => {
     const chip = e.target.closest(".pagador-chip");
