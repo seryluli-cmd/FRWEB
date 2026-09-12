@@ -107,8 +107,9 @@ transacción diaria), no crecen de la misma forma.
   tarjeta muestra "Reportado por X" y, si corresponde, "Resuelto por Y"
   debajo. Es una sección aparte, debajo de "Caja de IDEAS" en `SECCIONES`
   (`renderSeccionCards()`), con su propia colección de Firestore — no
-  comparte datos con `ideas`. Ver `renderReportes()` / `reporteCard()` /
-  `listenReportes()` en app.js.
+  comparte datos con `ideas`. Ideas y Reportes comparten toda su mecánica
+  (checklist.js, ver `crearModuloChecklist()`) — reportes.js/ideas.js solo
+  configuran colección, ids del DOM y textos puntuales de cada uno.
 - **Storage**: fotos de gastos en `recibos/{negocio}/{timestamp}_{random}.jpg`,
   se borran solas a los 4 meses (el gasto nunca se borra, solo la foto). Las
   fotos de Cierre de Turno van en `cierres/{negocio}/{...}.jpg` (mismo

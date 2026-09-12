@@ -5,10 +5,30 @@
 // login (¿Quién sos? + PIN) — eso sigue en app.js por ahora.
 // ============================================================
 import { state, NEUTRAL_VAR } from "./state.js";
-import { socioColorVar, colorDesdeNombre } from "./utils.js";
+import { $, socioColorVar, colorDesdeNombre } from "./utils.js";
 
 export function allPagadores() {
   return state.socios.concat(state.colaboradores);
+}
+
+// Chips de "¿quién es?" — mismo componente en 2 modales (Nuevo gasto y
+// Nuevo cierre), solo cambia dónde se guarda el nombre elegido (ver
+// onSeleccionar) y en qué wrap del DOM se dibuja.
+export function renderPagadorChipsEn(wrapId, onSeleccionar) {
+  const wrap = $(wrapId);
+  wrap.innerHTML = "";
+  allPagadores().forEach((nombre) => {
+    const chip = document.createElement("div");
+    chip.className = "pagador-chip";
+    chip.textContent = nombre;
+    chip.style.setProperty("--chip-color", payerColorVar(nombre));
+    chip.addEventListener("click", () => {
+      onSeleccionar(nombre);
+      wrap.querySelectorAll(".pagador-chip").forEach(c => c.classList.remove("selected"));
+      chip.classList.add("selected");
+    });
+    wrap.appendChild(chip);
+  });
 }
 
 // Color de identidad para cualquier "pagador": el dueño tiene su color

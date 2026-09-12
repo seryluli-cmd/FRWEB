@@ -72,6 +72,18 @@ export const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","
 export function mesLabel(date) {
   return `${MESES[date.getMonth()]} ${date.getFullYear()}`;
 }
+
+// Fecha base (día 1) del mes elegido según un offset de navegación mes a
+// mes (0 = mes actual, -1 = anterior, etc.) — mismo patrón que usan por
+// separado Gastos, Gastos S/Admin, Facturado y Resumen mensual, cada uno
+// con su propio offset en `state` (gastosMesOffset y afines) para navegar
+// su propio mes sin afectar a los demás.
+export function fechaBaseMes(offset) {
+  const d = new Date();
+  d.setDate(1); // evita saltos raros de mes al sumar/restar meses
+  d.setMonth(d.getMonth() + offset);
+  return d;
+}
 export function fechaDeRegistro(item) {
   return item.fecha && item.fecha.toDate ? item.fecha.toDate() : new Date(item.fecha || Date.now());
 }

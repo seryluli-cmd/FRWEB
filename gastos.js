@@ -4,10 +4,10 @@
 // ============================================================
 import { state, CATEGORIAS_GASTOS_DEFAULT, MAX_FOTOS_GASTO, FOTO_RETENCION_DIAS } from "./state.js";
 import {
-  $, $$, showToast, escapeHtml, fechaDeRegistro, fechaLocalISO, fechaLimiteHistorial, mesLabel,
+  $, $$, showToast, escapeHtml, fechaDeRegistro, fechaLocalISO, fechaLimiteHistorial, fechaBaseMes, mesLabel,
   money, parseMoneyInput, formatMoneyValue, socioInitial, setSyncOffline, conTimeout, csvEscape, downloadCSV
 } from "./utils.js";
-import { payerColorVar } from "./identidad.js";
+import { payerColorVar, renderPagadorChipsEn } from "./identidad.js";
 
 export function gastosDelNegocio() {
   return state.gastos.filter(g => g.negocio === state.negocioActual);
@@ -37,16 +37,6 @@ export function listenGastos(onCambio) {
     console.error(err);
     setSyncOffline(true);
   });
-}
-
-// Fecha base del mes elegido en la pantalla de Gastos (ver
-// gastosMesOffset) — mismo patrón que resumenFechaBase() para Resumen
-// mensual, pero independiente: son dos navegadores de mes separados.
-function gastosFechaBase() {
-  const d = new Date();
-  d.setDate(1); // evita saltos raros de mes al sumar/restar meses
-  d.setMonth(d.getMonth() + state.gastosMesOffset);
-  return d;
 }
 
 // Gastos cargados antes de que existiera "forma de pago" no tienen el
@@ -128,77 +118,30 @@ function crearGastoLi(g) {
   return li;
 }
 
-// Antes mostraba TODOS los gastos sin importar el mes (solo el total de
-// arriba estaba filtrado por mes actual, lo cual era inconsistente e
-// iba acumulando meses viejos mezclados en la lista). Ahora, igual que
-// Resumen mensual, se ve un mes a la vez — por defecto el actual (ver
-// selectSeccion()) — con flechas para ir a uno anterior si hace falta
-// editar o borrar algo viejo.
-export function renderGastos() {
-  const list = $("#expenses-list");
-  const empty = $("#expenses-empty");
+// Gastos y Gastos S/Admin comparten exactamente la misma mecánica de
+// lista mensual (navegar con offset, filtrar el mes, sumar el total) —
+// solo cambian los ids del DOM, el offset de `state` y qué gastos
+// entran. Antes mostraba TODOS los gastos sin importar el mes (solo el
+// total de arriba estaba filtrado por mes actual, lo cual era
+// inconsistente e iba acumulando meses viejos mezclados en la lista).
+// Ahora, igual que Resumen mensual, se ve un mes a la vez — por defecto
+// el actual (ver selectSeccion()) — con flechas para ir a uno anterior si
+// hace falta editar o borrar algo viejo.
+function renderGastosLista({ listId, emptyId, mesLabelId, btnSiguienteId, totalId, offset, filtro }) {
+  const list = $(listId);
+  const empty = $(emptyId);
   list.innerHTML = "";
 
-  const base = gastosFechaBase();
+  const base = fechaBaseMes(offset);
   const targetMonth = base.getMonth();
   const targetYear = base.getFullYear();
-  $("#gastos-mes-label").textContent = mesLabel(base);
+  $(mesLabelId).textContent = mesLabel(base);
   const now = new Date();
   const esMesActual = targetMonth === now.getMonth() && targetYear === now.getFullYear();
-  $("#btn-gastos-mes-siguiente").disabled = esMesActual;
+  $(btnSiguienteId).disabled = esMesActual;
 
   const gastosMes = gastosDelNegocio().filter(g => {
-    if (!state.esAdmin && g.soloAdmin) return false;
-    const f = fechaDeRegistro(g);
-    return f.getMonth() === targetMonth && f.getFullYear() === targetYear;
-  });
-
-  if (!gastosMes.length) {
-    empty.classList.remove("hidden");
-  } else {
-    empty.classList.add("hidden");
-  }
-
-  let totalMes = 0;
-  gastosMes.forEach(g => {
-    totalMes += Number(g.importe) || 0;
-    list.appendChild(crearGastoLi(g));
-  });
-
-  $("#total-mes").textContent = money(totalMes);
-}
-
-// Gastos S/Admin: mismo formulario/lista/edición/foto que Gastos común,
-// solo que filtrado a los gastos marcados soloAdmin (checkbox "🔒 Gasto
-// Admin" en el modal, ver openModal — es un flag por gasto individual, no
-// por categoría, así cualquier categoría puede tener gastos públicos y
-// privados mezclados) — pantalla propia, visible solo para admin (ver
-// SECCIONES en renderSeccionCards), para no mezclar lo privado con la
-// lista que ven los colaboradores. El total del mes SÍ sigue entrando en
-// Resumen mensual (que no filtra nada) — lo único que cambia acá es dónde
-// se ve la lista y quién puede verla.
-function gastosAdminFechaBase() {
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() + state.gastosAdminMesOffset);
-  return d;
-}
-
-export function renderGastosAdmin() {
-  const list = $("#expenses-admin-list");
-  const empty = $("#expenses-admin-empty");
-  list.innerHTML = "";
-
-  const base = gastosAdminFechaBase();
-  const targetMonth = base.getMonth();
-  const targetYear = base.getFullYear();
-  $("#gastos-admin-mes-label").textContent = mesLabel(base);
-  const now = new Date();
-  const esMesActual = targetMonth === now.getMonth() && targetYear === now.getFullYear();
-  $("#btn-gastos-admin-mes-siguiente").disabled = esMesActual;
-
-  const gastosMes = gastosDelNegocio().filter(g => {
-    if (!g.soloAdmin) return false;
+    if (!filtro(g)) return false;
     const f = fechaDeRegistro(g);
     return f.getMonth() === targetMonth && f.getFullYear() === targetYear;
   });
@@ -211,7 +154,40 @@ export function renderGastosAdmin() {
     list.appendChild(crearGastoLi(g));
   });
 
-  $("#total-mes-admin").textContent = money(totalMes);
+  $(totalId).textContent = money(totalMes);
+}
+
+export function renderGastos() {
+  renderGastosLista({
+    listId: "#expenses-list",
+    emptyId: "#expenses-empty",
+    mesLabelId: "#gastos-mes-label",
+    btnSiguienteId: "#btn-gastos-mes-siguiente",
+    totalId: "#total-mes",
+    offset: state.gastosMesOffset,
+    filtro: g => state.esAdmin || !g.soloAdmin
+  });
+}
+
+// Gastos S/Admin: mismo formulario/lista/edición/foto que Gastos común,
+// solo que filtrado a los gastos marcados soloAdmin (checkbox "🔒 Gasto
+// Admin" en el modal, ver openModal — es un flag por gasto individual, no
+// por categoría, así cualquier categoría puede tener gastos públicos y
+// privados mezclados) — pantalla propia, visible solo para admin (ver
+// SECCIONES en renderSeccionCards), para no mezclar lo privado con la
+// lista que ven los colaboradores. El total del mes SÍ sigue entrando en
+// Resumen mensual (que no filtra nada) — lo único que cambia acá es dónde
+// se ve la lista y quién puede verla.
+export function renderGastosAdmin() {
+  renderGastosLista({
+    listId: "#expenses-admin-list",
+    emptyId: "#expenses-admin-empty",
+    mesLabelId: "#gastos-admin-mes-label",
+    btnSiguienteId: "#btn-gastos-admin-mes-siguiente",
+    totalId: "#total-mes-admin",
+    offset: state.gastosAdminMesOffset,
+    filtro: g => !!g.soloAdmin
+  });
 }
 
 // Fotos de un gasto, siempre como lista — único lugar que lo calcula.
@@ -384,20 +360,7 @@ export function renderFotosGuardadas() {
 
 // ---------- Render: chips de pagador (modal) ----------
 export function renderPagadorChips() {
-  const wrap = $("#pagador-options");
-  wrap.innerHTML = "";
-  state.socios.concat(state.colaboradores).forEach((nombre) => {
-    const chip = document.createElement("div");
-    chip.className = "pagador-chip";
-    chip.textContent = nombre;
-    chip.style.setProperty("--chip-color", payerColorVar(nombre));
-    chip.addEventListener("click", () => {
-      state.selectedPagador = nombre;
-      wrap.querySelectorAll(".pagador-chip").forEach(c => c.classList.remove("selected"));
-      chip.classList.add("selected");
-    });
-    wrap.appendChild(chip);
-  });
+  renderPagadorChipsEn("#pagador-options", (nombre) => { state.selectedPagador = nombre; });
 }
 
 // ---------- Exportar datos (CSV) ----------

@@ -3,7 +3,7 @@
 // ya guardados, no tocan ni mueven ningún dato.
 // ============================================================
 import { state } from "./state.js";
-import { $, escapeHtml, fechaDeRegistro, mesLabel, money, socioColorVar, TURNOS, turnoLabelParaFecha } from "./utils.js";
+import { $, escapeHtml, fechaDeRegistro, fechaBaseMes, mesLabel, money, socioColorVar, TURNOS, turnoLabelParaFecha } from "./utils.js";
 import { payerColorVar } from "./identidad.js";
 import { gastosDelNegocio } from "./gastos.js";
 import { facturacionesDelNegocio } from "./facturado.js";
@@ -13,15 +13,8 @@ import { facturacionesDelNegocio } from "./facturado.js";
 // y el total de Gastos por separado — sin restar uno del otro. No borra ni
 // mueve ningún dato: es solo una vista calculada sobre lo que ya está
 // guardado en Firestore.
-function resumenFechaBase() {
-  const d = new Date();
-  d.setDate(1); // evita saltos raros de mes al sumar/restar meses
-  d.setMonth(d.getMonth() + state.resumenMesOffset);
-  return d;
-}
-
 export function renderResumen() {
-  const base = resumenFechaBase();
+  const base = fechaBaseMes(state.resumenMesOffset);
   const targetMonth = base.getMonth();
   const targetYear = base.getFullYear();
 

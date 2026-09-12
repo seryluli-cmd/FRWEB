@@ -4,11 +4,11 @@
 // ============================================================
 import { state } from "./state.js";
 import {
-  $, $$, showToast, escapeHtml, fechaDeRegistro, fechaLocalISO, fechaLimiteHistorial, mesLabel,
+  $, $$, showToast, escapeHtml, fechaDeRegistro, fechaLocalISO, fechaLimiteHistorial, fechaBaseMes, mesLabel,
   money, parseMoneyInput, formatMoneyValue, socioInitial, setSyncOffline, conTimeout, downloadCSV,
   TURNOS, turnoLabelParaFecha, turnoActual, turnoVencimiento, turnosDelMes, fechaParaTurno
 } from "./utils.js";
-import { payerColorVar } from "./identidad.js";
+import { payerColorVar, renderPagadorChipsEn } from "./identidad.js";
 
 export function facturacionesDelNegocio() {
   return state.facturaciones.filter(f => f.negocio === state.negocioActual);
@@ -95,15 +95,6 @@ function renderCierreFaltante(fecha, turno) {
   return li;
 }
 
-// Fecha base del mes elegido en la pantalla de Facturado (ver
-// facturadoMesOffset) — mismo patrón que gastosFechaBase().
-function facturadoFechaBase() {
-  const d = new Date();
-  d.setDate(1); // evita saltos raros de mes al sumar/restar meses
-  d.setMonth(d.getMonth() + state.facturadoMesOffset);
-  return d;
-}
-
 // Antes la grilla de turnos era siempre la del mes en curso, y todo el
 // historial de meses anteriores se listaba entero debajo, sin agrupar —
 // con el tiempo se iba acumulando y quedaba todo mezclado. Ahora, igual
@@ -128,7 +119,7 @@ export function renderFacturado() {
     }
   });
 
-  const base = facturadoFechaBase();
+  const base = fechaBaseMes(state.facturadoMesOffset);
   const targetMonth = base.getMonth();
   const targetYear = base.getFullYear();
   $("#facturado-mes-label").textContent = mesLabel(base);
@@ -192,20 +183,7 @@ export function renderFacturado() {
 
 // Chips de "¿Quién lo cargó?" en el modal de Facturado.
 export function renderPagadorChipsFacturado() {
-  const wrap = $("#pagador-options-fact");
-  wrap.innerHTML = "";
-  state.socios.concat(state.colaboradores).forEach((nombre) => {
-    const chip = document.createElement("div");
-    chip.className = "pagador-chip";
-    chip.textContent = nombre;
-    chip.style.setProperty("--chip-color", payerColorVar(nombre));
-    chip.addEventListener("click", () => {
-      state.selectedRegistrador = nombre;
-      wrap.querySelectorAll(".pagador-chip").forEach(c => c.classList.remove("selected"));
-      chip.classList.add("selected");
-    });
-    wrap.appendChild(chip);
-  });
+  renderPagadorChipsEn("#pagador-options-fact", (nombre) => { state.selectedRegistrador = nombre; });
 }
 
 export function exportFacturacionCSV() {
