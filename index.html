@@ -496,6 +496,19 @@
         <button id="btn-mes-siguiente" class="month-nav-btn" aria-label="Mes siguiente">›</button>
       </div>
 
+      <!-- Caja Inicio: fondo con el que arrancó el mes (vuelto/cambio), aparte
+           de los bloques de abajo — no entra en Gastos ni en Rentabilidad. -->
+      <div class="socio-total-card" style="margin-bottom:18px;">
+        <div class="socio-total-row">
+          <div class="socio-total-name">🏦 Caja Inicio</div>
+          <div class="socio-total-amount" id="resumen-caja-inicio">$0</div>
+        </div>
+        <div class="socio-total-row" style="margin-bottom:0;">
+          <p class="muted small" style="margin:0;">Fondo con el que arrancó el mes — no forma parte de la rentabilidad.</p>
+          <button type="button" id="btn-editar-caja-inicio" class="icon-btn hidden" aria-label="Editar Caja Inicio">✏️</button>
+        </div>
+      </div>
+
       <div class="stat-hero">
         <div class="stat-hero-label stat-hero-label-lg">💰 Total Facturado</div>
         <div class="stat-hero-value" id="resumen-total-facturado">$0</div>
@@ -893,6 +906,28 @@
       <div class="modal-actions">
         <button id="btn-cancel-add-inversion" class="btn-secondary">Cancelar</button>
         <button id="btn-save-inversion" class="btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: CAJA INICIO ===== -->
+  <div id="modal-caja-inicio" class="modal-overlay">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2>Caja Inicio</h2>
+      <p class="muted small" id="caja-inicio-modal-mes">Mes</p>
+      <p class="muted small">Fondo con el que arrancó este mes (vuelto/cambio) — no se cuenta como gasto ni ingreso, es solo informativo.</p>
+
+      <div class="field">
+        <label for="input-caja-inicio">Monto</label>
+        <input type="text" id="input-caja-inicio" inputmode="decimal" placeholder="0">
+      </div>
+
+      <p id="modal-caja-inicio-error" class="error-text hidden"></p>
+
+      <div class="modal-actions">
+        <button id="btn-cancel-caja-inicio" class="btn-secondary">Cancelar</button>
+        <button id="btn-guardar-caja-inicio" class="btn-primary">Guardar</button>
       </div>
     </div>
   </div>

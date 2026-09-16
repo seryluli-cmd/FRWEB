@@ -32,7 +32,7 @@ import {
   exportFacturacionCSV, resetFotoFieldFact, actualizarChipsTurnoPorFecha, registrarEdicionManualFacturado,
   openModalFacturado, closeModalFacturado, saveCierre, deleteCierre
 } from "./facturado.js";
-import { renderResumen, renderBalance } from "./resumen.js";
+import { renderResumen, renderBalance, listenCajaInicio, abrirModalCajaInicio, cerrarModalCajaInicio, guardarCajaInicio } from "./resumen.js";
 import {
   cargarHistorialLogins, renderAjustesSocios, agregarCategoriaDesdeAjustes, quitarCategoria,
   agregarColaboradorDesdeAjustes, quitarColaborador, toggleAdminColaborador, guardarClaveMaestra,
@@ -74,6 +74,7 @@ function bootApp() {
   listenIdeas();
   listenReportes();
   listenInversion();
+  listenCajaInicio();
   listenSocios();
   listenConnectivity();
   setDefaultFecha();
@@ -203,7 +204,7 @@ function wireEvents() {
   // de Turno (Total, Efectivo, Digital).
   ["#input-importe", "#input-mixto-efectivo", "#input-mixto-digital",
    "#input-importe-fact", "#input-efectivo-fact", "#input-digital-fact",
-   "#input-monto-inversion"].forEach(wireMoneyInput);
+   "#input-monto-inversion", "#input-caja-inicio"].forEach(wireMoneyInput);
   // "change" (al salir del campo), no "input" (cada tecla) — si no, un
   // solo dígito ya dispara el cálculo con el valor a medio tipear (ver
   // calcularCampoMixtoFaltante).
@@ -244,6 +245,12 @@ function wireEvents() {
     if (state.resumenMesOffset >= 0) return;
     state.resumenMesOffset++;
     renderResumen();
+  });
+  $("#btn-editar-caja-inicio").addEventListener("click", abrirModalCajaInicio);
+  $("#btn-cancel-caja-inicio").addEventListener("click", cerrarModalCajaInicio);
+  $("#btn-guardar-caja-inicio").addEventListener("click", guardarCajaInicio);
+  $("#modal-caja-inicio").addEventListener("click", (e) => {
+    if (e.target.id === "modal-caja-inicio") cerrarModalCajaInicio();
   });
   $("#btn-back-to-seccion-gastosadmin").addEventListener("click", volverASeccion);
   $("#btn-gastos-admin-mes-anterior").addEventListener("click", () => {

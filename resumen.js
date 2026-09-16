@@ -3,10 +3,79 @@
 // ya guardados, no tocan ni mueven ningún dato.
 // ============================================================
 import { state } from "./state.js";
-import { $, escapeHtml, fechaDeRegistro, fechaBaseMes, mesLabel, money, socioColorVar, TURNOS, turnoLabelParaFecha } from "./utils.js";
+import { $, escapeHtml, fechaDeRegistro, fechaBaseMes, mesLabel, money, parseMoneyInput, formatMoneyValue, showToast, socioColorVar, TURNOS, turnoLabelParaFecha, setSyncOffline } from "./utils.js";
 import { payerColorVar } from "./identidad.js";
 import { gastosDelNegocio } from "./gastos.js";
 import { facturacionesDelNegocio } from "./facturado.js";
+
+// ---------- Caja Inicio ----------
+// Fondo con el que arrancó el mes (vuelto/cambio para operar) — un dato
+// aparte de gastos/facturación, que el admin carga a mano una vez por mes.
+// Colección chica (un doc por mes, id "YYYY-MM"), se trae completa igual
+// que ideas/reportes/inversion (ver README), no filtrada por fecha.
+function mesKeyDe(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+function cajaInicioDelMes(key) {
+  const doc = state.cajaInicio.find(c => c.id === key);
+  return doc ? Number(doc.monto) || 0 : 0;
+}
+
+export function listenCajaInicio() {
+  state.fbSdk.onSnapshot(state.fbSdk.collection(state.db, "cajaInicio"), (snapshot) => {
+    state.cajaInicio = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (state.negocioActual) renderResumen();
+    setSyncOffline(false);
+  }, (err) => {
+    console.error(err);
+    setSyncOffline(true);
+  });
+}
+
+export function abrirModalCajaInicio() {
+  if (!state.esAdmin) return;
+  const base = fechaBaseMes(state.resumenMesOffset);
+  const actual = cajaInicioDelMes(mesKeyDe(base));
+  $("#caja-inicio-modal-mes").textContent = mesLabel(base);
+  $("#input-caja-inicio").value = actual ? formatMoneyValue(actual) : "";
+  $("#modal-caja-inicio-error").classList.add("hidden");
+  $("#modal-caja-inicio").classList.add("active");
+  setTimeout(() => $("#input-caja-inicio").focus(), 150);
+}
+
+export function cerrarModalCajaInicio() {
+  $("#modal-caja-inicio").classList.remove("active");
+}
+
+export async function guardarCajaInicio() {
+  const monto = parseMoneyInput($("#input-caja-inicio").value);
+  const errEl = $("#modal-caja-inicio-error");
+  if (!Number.isFinite(monto) || monto < 0) {
+    errEl.textContent = "Ingresá un monto válido.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  const key = mesKeyDe(fechaBaseMes(state.resumenMesOffset));
+  const btn = $("#btn-guardar-caja-inicio");
+  btn.disabled = true;
+  btn.textContent = "Guardando…";
+  try {
+    await state.fbSdk.setDoc(state.fbSdk.doc(state.db, "cajaInicio", key), {
+      monto,
+      registradoPor: state.usuarioActual,
+      actualizadoEn: state.fbSdk.serverTimestamp()
+    });
+    cerrarModalCajaInicio();
+    showToast("Caja Inicio guardada ✅");
+  } catch (e) {
+    errEl.textContent = "No se pudo guardar. Revisá tu conexión.";
+    errEl.classList.remove("hidden");
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Guardar";
+  }
+}
 
 // ---------- Render: Resumen mensual ----------
 // Muestra, para el mes elegido (navegable con ‹ ›), el total de Facturado
@@ -23,6 +92,10 @@ export function renderResumen() {
   const now = new Date();
   const esMesActual = targetMonth === now.getMonth() && targetYear === now.getFullYear();
   $("#btn-mes-siguiente").disabled = esMesActual;
+
+  // Caja Inicio: informativo, no entra en ningún cálculo de gastos/rentabilidad de abajo.
+  $("#resumen-caja-inicio").textContent = money(cajaInicioDelMes(mesKeyDe(base)));
+  $("#btn-editar-caja-inicio").classList.toggle("hidden", !state.esAdmin);
 
   const gastosMes = gastosDelNegocio().filter(g => {
     const f = fechaDeRegistro(g);

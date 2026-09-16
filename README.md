@@ -128,6 +128,14 @@ transacción diaria), no crecen de la misma forma.
   comparte datos con `ideas`. Ideas y Reportes comparten toda su mecánica
   (checklist.js, ver `crearModuloChecklist()`) — reportes.js/ideas.js solo
   configuran colección, ids del DOM y textos puntuales de cada uno.
+- **`cajaInicio`** — `{ monto, registradoPor, actualizadoEn }`, un doc por
+  mes con id `"YYYY-MM"` (`setDoc` sobrescribe si se edita de nuevo el mismo
+  mes, no se acumula historial). Es el fondo/vuelto con el que arrancó ese
+  mes — puramente informativo: **Resumen mensual** lo muestra aparte
+  (tarjeta "🏦 Caja Inicio", arriba de Total Facturado) y no entra en
+  ningún cálculo de Gastos ni de Rentabilidad (ver `renderResumen()` en
+  resumen.js). Solo el admin ve el lápiz para cargarlo/editarlo
+  (`abrirModalCajaInicio()`); el resto lo ve pero no lo puede tocar.
 - **Storage**: fotos de gastos en `recibos/{negocio}/{timestamp}_{random}.jpg`,
   se borran solas a los 4 meses (el gasto nunca se borra, solo la foto). Las
   fotos de Cierre de Turno van en `cierres/{negocio}/{...}.jpg` (mismo

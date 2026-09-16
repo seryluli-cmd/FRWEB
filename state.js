@@ -84,6 +84,7 @@ export const state = {
   ideas: [],            // Ideas de mejora — [{id, texto, estado, propuestoPor, creadoEn}]
   reportes: [],         // Reportes de mantenimiento — [{id, texto, estado, propuestoPor, votos, creadoEn}]
   inversiones: [],      // Historial de "Inversión Recuperada" — [{id, monto, registradoPor, creadoEn}]. `monto` es el TOTAL acumulado a esa fecha, no un incremento.
+  cajaInicio: [],       // Fondo con el que arrancó cada mes — [{id, monto, registradoPor, actualizadoEn}], id = "YYYY-MM" (ver resumen.js). No entra en gastos/rentabilidad, es solo informativo.
 
   negocioActual: null,  // "gestionfr" (siempre — acá hay un solo negocio)
   seccionActual: null,  // "gastos" | "facturado" | "resumen"
