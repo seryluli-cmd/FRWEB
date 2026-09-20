@@ -65,10 +65,15 @@ completas: son listas acotadas por naturaleza (no un registro por
 transacción diaria), no crecen de la misma forma.
 
 - **`config/socios`** (un solo documento) —
-  `{ socios: [string], colaboradores: string[], admins: string[], pins: { [nombre]: "1234" }, categoriasGastos: string[] }`.
+  `{ socios: [string], colaboradores: string[], admins: string[], pins: { [nombre]: "1234" }, categoriasGastos: string[], claveMaestraAdmin?: string }`.
   `socios` tiene un único nombre (vos, el dueño) y `admins` siempre lo
   incluye — no hay checkbox de admin en el setup porque no hace falta
   elegir. El campo `colaboradores` se puede editar después desde Ajustes.
+  `claveMaestraAdmin` es una clave compartida entre admins (default
+  `"llavez"`, editable desde Ajustes) que se pide, además del PIN elegido,
+  la primera vez que un admin crea su PIN (`requiereClaveMaestra` en
+  sesion.js) — evita que cualquiera pueda auto-asignarse como admin en un
+  celular nuevo con solo saber el nombre.
 - **`gastos`** — `{ importe, descripcion, categoria, pagadoPor, negocio, fecha, creadoEn, nota?, faltaAbonar?, soloAdmin?, formaPago?, montoEfectivo?, montoDigital?, fotos? }`.
   `fotos` es una lista de hasta 5 `{url, path}` (una factura puede tener
   varias hojas) — único lugar que la lee es `fotosDeGasto(g)`, que también
@@ -80,7 +85,12 @@ transacción diaria), no crecen de la misma forma.
   en el HTML) — no tiene ninguna noción de privacidad. `soloAdmin` sí es lo
   que marca un gasto individual como privado (checkbox "🔒 Gasto Admin" en
   el modal) — ver "Identidad y permisos" abajo.
-- **`facturacion`** — `{ importe, turno, registradoPor, negocio, fecha, creadoEn }`.
+- **`facturacion`** — `{ importe, efectivo, digital, turno, registradoPor, negocio, fecha, creadoEn, fotoUrl?, fotoPath? }`.
+  `efectivo`/`digital` es el desglose del `importe` total del cierre (deben
+  sumarlo exacto, el modal calcula el tercer campo solo con el mismo
+  patrón que el desglose Mixto de Gastos — ver `calcularCampoFaltanteFacturado()`
+  en facturado.js). `fotoUrl`/`fotoPath` es opcional, una sola foto por
+  cierre (a diferencia de `gastos.fotos`, que admite varias).
   `turno` es `"mañana"` | `"tarde"` | `"noche"` (constante `TURNOS` en utils.js) —
   todos los días de la semana, domingo incluido, son 3 turnos por día, cada
   uno carga su propia caja como un cierre separado. `turnoActual()` propone
