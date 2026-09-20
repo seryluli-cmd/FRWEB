@@ -2,10 +2,10 @@
 // Gastos — carga, edición, fotos de factura, "Gastos S/Admin", exportar
 // CSV. La pantalla más grande de la app.
 // ============================================================
-import { state, CATEGORIAS_GASTOS_DEFAULT, MAX_FOTOS_GASTO, FOTO_RETENCION_DIAS } from "./state.js";
+import { state, MAX_FOTOS_GASTO, FOTO_RETENCION_DIAS } from "./state.js";
 import {
   $, $$, showToast, escapeHtml, fechaDeRegistro, fechaLocalISO, fechaLimiteHistorial, fechaBaseMes, mesLabel,
-  money, parseMoneyInput, formatMoneyValue, socioInitial, setSyncOffline, conTimeout, csvEscape, downloadCSV
+  money, parseMoneyInput, formatMoneyValue, socioInitial, setSyncOffline, conTimeout, downloadCSV
 } from "./utils.js";
 import { payerColorVar, renderPagadorChipsEn } from "./identidad.js";
 
@@ -14,9 +14,10 @@ export function gastosDelNegocio() {
 }
 
 // onCambio se llama después de cada snapshot con datos nuevos — hoy
-// dispara renderBalance()/renderResumen(), que todavía viven en app.js (no
-// se movieron en esta etapa). Un callback en vez de importarlas evita una
-// dependencia circular gastos.js↔app.js.
+// dispara renderBalance()/renderResumen(), que viven en resumen.js. Un
+// callback (cableado desde app.js) en vez de importarlas acá evita una
+// dependencia circular gastos.js↔resumen.js (resumen.js ya importa
+// gastosDelNegocio() de este archivo).
 export function listenGastos(onCambio) {
   const q = state.fbSdk.query(
     state.fbSdk.collection(state.db, "gastos"),
