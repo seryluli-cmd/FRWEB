@@ -239,10 +239,17 @@ export function votosDe(idea) {
 // Todo texto que viene de Firestore (descripción, nombres) pasa por acá antes
 // de insertarse con innerHTML, para evitar XSS. Cualquier campo de texto
 // nuevo que se agregue a un template debe escaparse igual.
+//
+// El div.innerHTML de abajo ya escapa & < > (necesario en cualquier
+// posición de texto), pero NO comillas — una comilla suelta no rompe un
+// nodo de texto, pero sí puede cortar el atributo HTML donde se la
+// interpole (ej. `data-nombre="${escapeHtml(nombre)}"`), permitiendo
+// inyectar un atributo nuevo (onmouseover=, onerror=, etc.) si el texto
+// original trae una comilla seguida de eso. Por eso se escapan también acá.
 export function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str ?? "";
-  return div.innerHTML;
+  return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 export function csvEscape(value) {
