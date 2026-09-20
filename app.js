@@ -7,24 +7,23 @@
 // de vuelta para no cambiar ninguna otra línea del código todavía.
 import {
   $, $$, showToast, showScreen,
-  money, parseMoneyInput, formatMoneyValue, wireMoneyInput,
-  MESES, mesLabel, fechaDeRegistro, fechaLocalISO, fechaLimiteHistorial,
+  wireMoneyInput,
+  fechaLocalISO,
   fechaParaTurno,
-  escapeHtml, conTimeout, compressImage,
-  setSyncOffline
+  compressImage
 } from "./utils.js";
 
 // Tercer paso: separar cada pantalla en su propio módulo — arrancando por
 // las más chicas/autocontenidas (Ideas, Reportes, Inversión) para probar
 // el patrón antes de mover pantallas más grandes (Gastos, Facturado).
 import { listenIdeas, renderIdeas, toggleVoto, toggleIdeaEstado, deleteIdea, openModalIdea, closeModalIdea, saveIdea } from "./ideas.js";
-import { listenReportes, renderReportes, toggleVotoReporte, toggleReporteEstado, deleteReporte, openModalReporte, closeModalReporte, saveReporte } from "./reportes.js";
-import { listenInversion, renderInversion, openModalInversion, closeModalInversion, saveInversion, deleteInversion } from "./inversion.js";
+import { listenReportes, toggleVotoReporte, toggleReporteEstado, deleteReporte, openModalReporte, closeModalReporte, saveReporte } from "./reportes.js";
+import { listenInversion, openModalInversion, closeModalInversion, saveInversion, deleteInversion } from "./inversion.js";
 import {
   listenGastos, renderGastos, renderGastosAdmin, fotosDeGasto,
   abrirVisorFotos, visorFotosMover, closeModalVisorFotos, wireVisorFotosZoom, verDetalleGasto, closeModalDetalleGasto,
   renderFotosGuardadas, renderPagadorChips, exportGastosCSV, setDefaultFecha,
-  resetFotoField, renderFotoStrip, selectFormaPago, registrarEdicionMixto, calcularCampoMixtoFaltante,
+  renderFotoStrip, selectFormaPago, registrarEdicionMixto, calcularCampoMixtoFaltante,
   openModal, closeModal, saveGasto, deleteGasto, marcarAbonado
 } from "./gastos.js";
 import {
@@ -136,14 +135,22 @@ if ("serviceWorker" in navigator) {
     }
     recargaPendiente = true;
     recargarSiNoMolesta();
+    // Si justo hay un modal abierto, recargarSiNoMolesta() de arriba no
+    // hace nada y sin este reintento la recarga quedaría pendiente para
+    // siempre hasta que la persona cambie de pestaña/app — este intervalo
+    // se autolimpia apenas la recarga efectivamente ocurre.
+    const reintento = setInterval(() => {
+      recargarSiNoMolesta();
+      if (recargando) clearInterval(reintento);
+    }, 30000);
   });
 
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("service-worker.js").then((reg) => {
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState !== "visible") return;
-        reg.update();            // ¿hay versión nueva publicada?
-        recargarSiNoMolesta();   // ¿quedó una pendiente de antes?
+        reg.update().catch(console.warn); // ¿hay versión nueva publicada?
+        recargarSiNoMolesta();             // ¿quedó una pendiente de antes?
       });
     }).catch(console.warn);
   });
@@ -550,4 +557,4 @@ async function start() {
   await attemptReconnect();
 }
 
-start();
+start().catch(console.error);
