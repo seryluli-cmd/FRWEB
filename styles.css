@@ -45,7 +45,7 @@
   }
 }
 
-/* Tema forzado a "Oscuro" desde Ajustes (ver seleccionarTema en app.js) —
+/* Tema forzado a "Oscuro" desde Ajustes (ver seleccionarTema en ajustes.js) —
    mismos valores que el bloque de arriba, pero sin depender de
    prefers-color-scheme, para que gane aunque el celular esté en Claro. */
 :root[data-theme="dark"] {

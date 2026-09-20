@@ -15,7 +15,7 @@ export function facturacionesDelNegocio() {
 }
 
 // onCambio se llama después de cada snapshot con datos nuevos — hoy
-// dispara renderResumen(), que todavía vive en app.js (mismo patrón que
+// dispara renderResumen(), que vive en resumen.js (mismo patrón que
 // listenGastos() en gastos.js, ver ese comentario).
 export function listenFacturacion(onCambio) {
   const q = state.fbSdk.query(

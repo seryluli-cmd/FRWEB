@@ -2,7 +2,7 @@
 // Identidad / permisos compartidos entre pantallas — quién es cada
 // "pagador" (socio o colaborador) y su color, y permisos puntuales por
 // nombre exacto (Inversión Recuperada). No incluye todavía el flujo de
-// login (¿Quién sos? + PIN) — eso sigue en app.js por ahora.
+// login (¿Quién sos? + PIN) — eso vive en sesion.js.
 // ============================================================
 import { state, NEUTRAL_VAR } from "./state.js";
 import { $, socioColorVar, colorDesdeNombre } from "./utils.js";

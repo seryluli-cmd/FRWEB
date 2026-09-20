@@ -8,7 +8,7 @@ import { allPagadores, payerColorVar } from "./identidad.js";
 
 // Historial de logeos: cuenta cuántas veces se identificó cada persona
 // (tanto al tipear el PIN de nuevo como cuando el celular ya la recordaba
-// — setUsuarioActual() en app.js es el único lugar por el que pasa
+// — setUsuarioActual() en sesion.js es el único lugar por el que pasa
 // cualquiera de las dos formas). Solo Sergio puede VER el resultado (ver
 // renderAjustesSocios) pero se cuenta para todos por igual. Un doc por
 // persona con un contador atómico, en vez de un doc por logeo, para no
