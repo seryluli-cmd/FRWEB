@@ -7,7 +7,7 @@
 // mostrar los botones de admin.
 // ============================================================
 import { state, LS_USER_KEY, LS_SOCIOS_CACHE, LS_COLAB_CACHE, CATEGORIAS_GASTOS_DEFAULT, NEGOCIOS } from "./state.js";
-import { $, $$, escapeHtml, showScreen, socioInitial, setSyncOffline } from "./utils.js";
+import { $, escapeHtml, showScreen, socioInitial, setSyncOffline } from "./utils.js";
 import { allPagadores, payerColorVar } from "./identidad.js";
 import { normalizarCategoriasGastos } from "./firebase.js";
 import { selectNegocio } from "./navegacion.js";
