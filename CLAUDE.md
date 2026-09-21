@@ -6,14 +6,19 @@ Este repo es del dueño, sin otros colaboradores tocando el código. No hace
 falta preguntar antes de:
 
 - Editar, crear o borrar archivos del proyecto (reversible con git).
-- `git commit` y `git push` a `master` — Netlify publica solo con cada push,
-  no hace falta pedir permiso cada vez.
+- `git commit` a `master` o a ramas propias del trabajo pedido — no hace
+  falta pedir permiso cada vez.
 - Crear ramas, abrir y mergear PRs propias del trabajo pedido.
 - Correr el servidor local de preview, leer/navegar el código, probar la
   app en el navegador.
 
 Sí seguir confirmando antes de (esto no cambia):
 
+- `git push` a `master` — **cada push dispara un build de Netlify que
+  consume créditos** (~15 por build), así que no se pushea automático
+  aunque el commit en sí no necesite permiso. Juntar varios commits y
+  pedir confirmación una sola vez antes de pushear todos juntos, en vez
+  de confirmar push por push.
 - Cualquier escritura o borrado contra el **Firestore de producción real**
   (crear/editar/borrar gastos, cierres, ideas, votos, etc. de datos reales
   del negocio) — solo lectura para verificar, salvo que el dueño pida
