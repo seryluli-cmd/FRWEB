@@ -57,16 +57,15 @@ function renderCierreItem(f) {
 
   const li = document.createElement("li");
   li.className = "expense-item";
-  // Acá los íconos se quedan en la misma fila que el texto (a diferencia
-  // de Gastos) — el texto de un cierre es corto y no necesita el ancho
-  // extra, así que no hacía falta separarlos en .expense-item-actions.
+  // El texto (turno, quién y a qué hora) va en su propia fila arriba, con
+  // todo el ancho de la tarjeta para él solo — si compartiera fila con el
+  // avatar, el monto y los íconos (como antes) no entra ni la versión más
+  // corta en un celular real. Avatar/monto/íconos quedan abajo, mismo
+  // patrón que .expense-item-actions en Gastos.
   li.innerHTML = `
+    <div class="desc">${turnoLabel ? escapeHtml(turnoLabel) + ", " : ""}${escapeHtml(f.registradoPor || "?")}${horaCarga ? " " + horaCarga + " hs" : ""} · ${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}</div>
     <div class="expense-item-top">
       <div class="avatar" style="background:${payerColorVar(f.registradoPor)}">${socioInitial(f.registradoPor)}</div>
-      <div class="info">
-        <div class="desc">${turnoLabel ? escapeHtml(turnoLabel) + " — " : ""}${fecha.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "short" })}</div>
-        <div class="meta">Cargado por ${escapeHtml(f.registradoPor || "?")}${horaCarga ? " a las " + horaCarga : ""}</div>
-      </div>
       <div class="amount">${money(f.importe)}</div>
       ${fotoBtn}
       ${adminBtns}

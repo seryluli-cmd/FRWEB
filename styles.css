@@ -493,9 +493,11 @@ input:focus, select:focus, textarea:focus {
    única de .expense-item). En Gastos, los íconos de foto/editar/borrar
    quedan afuera de esta fila, en .expense-item-actions debajo — así el
    texto (descripción larga, categoría, nota) tiene todo el ancho para
-   él solo en vez de competir con los íconos y verse apretado. En
-   Cierre de Turno y en el aviso "Caja no cargada" no cambia nada visual:
-   simplemente quedó todo adentro de esta misma fila, como ya estaba. */
+   él solo en vez de competir con los íconos y verse apretado. En Cierre
+   de Turno directamente no hay columna .info: el texto (turno, quién y
+   hora) es un .desc aparte arriba de esta fila, con el ancho completo de
+   la tarjeta — ni el avatar ni los íconos le dejaban espacio suficiente
+   en un celular real cuando compartía esta fila con ellos. */
 .expense-item-top { display: flex; align-items: center; gap: 12px; }
 .expense-item-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .expense-item .avatar {
@@ -511,7 +513,11 @@ input:focus, select:focus, textarea:focus {
 .expense-item .desc { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .expense-item .meta { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
 .expense-item .gasto-nota { font-style: italic; }
-.expense-item .amount { font-weight: 700; font-size: 15.5px; font-variant-numeric: proportional-nums; white-space: nowrap; }
+/* margin-left: auto empuja el monto (y lo que venga después) a la derecha
+   cuando no hay un .info con flex:1 al lado (ej. Cierre de Turno, que ya
+   no tiene columna .info) — no cambia nada donde sí está .info, porque ese
+   flex:1 ya ocupa todo el espacio libre y no le deja nada al margin auto. */
+.expense-item .amount { font-weight: 700; font-size: 15.5px; font-variant-numeric: proportional-nums; white-space: nowrap; margin-left: auto; }
 
 .expense-item.falta-abonar { background: var(--critical-bg); border-color: var(--critical); }
 .expense-item.falta-abonar .amount { color: var(--critical); }
