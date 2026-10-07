@@ -5,7 +5,7 @@
 import { state } from "./state.js";
 import { $, escapeHtml, fechaDeRegistro, fechaBaseMes, mesLabel, money, parseMoneyInput, formatMoneyValue, showToast, socioColorVar, TURNOS, turnoLabelParaFecha, setSyncOffline } from "./utils.js";
 import { payerColorVar } from "./identidad.js";
-import { gastosDelNegocio } from "./gastos.js";
+import { gastosDelNegocio, formaPagoLabel } from "./gastos.js";
 import { facturacionesDelNegocio } from "./facturado.js";
 
 // ---------- Caja Inicio ----------
@@ -78,6 +78,47 @@ export async function guardarCajaInicio() {
 }
 
 // ---------- Render: Resumen mensual ----------
+
+// Categoría con la que cuenta un gasto en "Gastos por categoría" — único
+// lugar que lo decide (un gasto sin categoría cae en "Otros"), así el monto
+// de la tarjeta y el detalle desplegado nunca se desfasan.
+function categoriaDe(g) {
+  return g.categoria || "Otros";
+}
+
+// Detalle de una categoría desplegada: todos sus gastos del mes (los mismos
+// que suman en el monto de la tarjeta, incluidos los "Solo admin" — esta
+// pantalla ya es solo para admin), del más reciente al más antiguo. Solo
+// lectura: editar/borrar sigue siendo desde la pantalla Gastos.
+function detalleCategoriaHtml(gastos) {
+  const filas = gastos
+    .slice()
+    .sort((a, b) => fechaDeRegistro(b) - fechaDeRegistro(a))
+    .map(g => {
+      const meta = [
+        fechaDeRegistro(g).toLocaleDateString("es-AR", { day: "2-digit", month: "short" }),
+        `Pagó ${escapeHtml(g.pagadoPor || "?")}`,
+        formaPagoLabel(g),
+        g.faltaAbonar ? "⚠️ Falta abonar" : "",
+        g.soloAdmin ? "🔒 Solo admin" : ""
+      ].filter(Boolean).join(" · ");
+      return `
+        <div class="categoria-gasto">
+          <div class="categoria-gasto-top">
+            <span class="categoria-gasto-desc">${escapeHtml(g.descripcion || "Sin descripción")}</span>
+            <span class="categoria-gasto-importe">${money(g.importe)}</span>
+          </div>
+          <div class="categoria-gasto-meta">${meta}</div>
+        </div>`;
+    })
+    .join("");
+  return `
+    <div class="categoria-detalle">
+      <div class="categoria-detalle-count">${gastos.length === 1 ? "1 gasto" : `${gastos.length} gastos`}</div>
+      ${filas}
+    </div>`;
+}
+
 // Muestra, para el mes elegido (navegable con ‹ ›), el total de Facturado
 // y el total de Gastos por separado — sin restar uno del otro. No borra ni
 // mueve ningún dato: es solo una vista calculada sobre lo que ya está
@@ -199,7 +240,7 @@ export function renderResumen() {
 
   const porCategoria = {};
   gastosMes.forEach(g => {
-    const cat = g.categoria || "Otros";
+    const cat = categoriaDe(g);
     porCategoria[cat] = (porCategoria[cat] || 0) + (Number(g.importe) || 0);
   });
   const categorias = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]);
@@ -214,15 +255,26 @@ export function renderResumen() {
     const maxVal = Math.max(1, ...categorias.map(c => c[1]));
     categorias.forEach(([cat, val]) => {
       const pct = Math.round((val / maxVal) * 100);
+      const abierta = state.resumenCategoriasAbiertas.has(cat);
       const card = document.createElement("div");
       card.className = "socio-total-card";
+      // Nombre + monto + barra son un botón que despliega/pliega el detalle
+      // de gastos de esa categoría (ver detalleCategoriaHtml).
       card.innerHTML = `
-        <div class="socio-total-row">
-          <div class="socio-total-name">${escapeHtml(cat)}</div>
-          <div class="socio-total-amount">${money(val)}</div>
-        </div>
-        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:var(--text-muted)"></div></div>
+        <button type="button" class="categoria-toggle" aria-expanded="${abierta}">
+          <span class="socio-total-row">
+            <span class="socio-total-name"><span class="categoria-flecha" aria-hidden="true">${abierta ? "▾" : "▸"}</span>${escapeHtml(cat)}</span>
+            <span class="socio-total-amount">${money(val)}</span>
+          </span>
+          <span class="bar-track"><span class="bar-fill" style="width:${pct}%;background:var(--text-muted)"></span></span>
+        </button>
+        ${abierta ? detalleCategoriaHtml(gastosMes.filter(g => categoriaDe(g) === cat)) : ""}
       `;
+      card.querySelector(".categoria-toggle").addEventListener("click", () => {
+        if (state.resumenCategoriasAbiertas.has(cat)) state.resumenCategoriasAbiertas.delete(cat);
+        else state.resumenCategoriasAbiertas.add(cat);
+        renderResumen();
+      });
       wrap.appendChild(card);
     });
   }

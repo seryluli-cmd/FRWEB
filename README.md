@@ -196,6 +196,17 @@ siempre. En **Resumen mensual** (ya `soloAdmin` la pantalla entera, ver
 arriba) no se filtra nada — entran en el total y en la rentabilidad como
 cualquier otro gasto.
 
+La sección **"Gastos por categoría"** de Resumen mensual agrupa los gastos
+del mes por `categoria` (los que no tienen caen en "Otros", ver
+`categoriaDe()` en resumen.js). Cada tarjeta es un botón: al tocarla se
+despliega el detalle de los gastos que forman ese monto (fecha, descripción,
+quién pagó, forma de pago e importe, del más reciente al más antiguo; los
+privados con su "🔒 Solo admin" y los pendientes con "⚠️ Falta abonar") —
+solo lectura, editar/borrar sigue siendo desde la pantalla Gastos. Qué
+categorías están desplegadas vive en `state.resumenCategoriasAbiertas`
+(no en el DOM, porque `renderResumen()` redibuja todo en cada cambio de
+Firestore); se vacía al entrar a la sección y se mantiene al cambiar de mes.
+
 ⚠️ Este ocultamiento es solo de pantalla, igual que el PIN (ver más abajo)
 — no hay reglas de seguridad de Firestore en este repo, así que un
 colaborador que abra las herramientas de desarrollador del navegador

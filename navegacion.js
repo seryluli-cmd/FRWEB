@@ -105,6 +105,7 @@ function selectSeccion(id) {
     showScreen("screen-facturado");
   } else if (id === "resumen") {
     state.resumenMesOffset = 0;
+    state.resumenCategoriasAbiertas.clear(); // cada visita arranca con todas las categorías cerradas
     renderResumen();
     showScreen("screen-resumen");
   } else if (id === "gastosadmin") {
