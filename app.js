@@ -31,7 +31,8 @@ import {
   exportFacturacionCSV, resetFotoFieldFact, actualizarChipsTurnoPorFecha, registrarEdicionManualFacturado,
   openModalFacturado, closeModalFacturado, saveCierre, deleteCierre
 } from "./facturado.js";
-import { renderResumen, renderBalance, renderComparar, listenCajaInicio, abrirModalCajaInicio, cerrarModalCajaInicio, guardarCajaInicio } from "./resumen.js";
+import { renderComparar, initComparar } from "./comparar.js";
+import { renderResumen, renderBalance, listenCajaInicio, abrirModalCajaInicio, cerrarModalCajaInicio, guardarCajaInicio } from "./resumen.js";
 import {
   cargarHistorialLogins, renderAjustesSocios, agregarCategoriaDesdeAjustes, quitarCategoria,
   agregarColaboradorDesdeAjustes, quitarColaborador, toggleAdminColaborador, guardarClaveMaestra,
@@ -245,6 +246,7 @@ function wireEvents() {
   $("#btn-back-to-negocio").addEventListener("click", () => showScreen("screen-negocio"));
   $("#btn-back-to-seccion-resumen").addEventListener("click", volverASeccion);
   $("#btn-back-to-seccion-comparar").addEventListener("click", volverASeccion);
+  initComparar();
   $("#btn-mes-anterior").addEventListener("click", () => {
     state.resumenMesOffset--;
     renderResumen();

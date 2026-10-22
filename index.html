@@ -632,9 +632,31 @@
     </header>
 
     <section class="tab active">
-      <p class="muted small" style="margin-bottom:16px;">Facturado (Efectivo, Digital y la suma de los dos) y Gastos totales de cada mes, del más reciente al más antiguo.</p>
-      <div id="comparar-meses" class="socios-totales"></div>
-      <p id="comparar-empty" class="muted small hidden">Todavía no hay cierres ni gastos cargados.</p>
+      <div class="cmp-seg" id="cmp-vista" role="group" aria-label="Tipo de comparación">
+        <button type="button" data-vista="mes" aria-pressed="true">Por mes</button>
+        <button type="button" data-vista="tramo" aria-pressed="false">Por tramo</button>
+      </div>
+
+      <!-- Vista "Por mes": un bloque por mes con Efectivo, Digital, suma y Gastos -->
+      <div id="cmp-vista-mes">
+        <p class="muted small" style="margin-bottom:16px;">Facturado (Efectivo, Digital y la suma de los dos) y Gastos totales de cada mes, del más reciente al más antiguo.</p>
+        <div id="comparar-meses" class="socios-totales"></div>
+        <p id="comparar-empty" class="muted small hidden">Todavía no hay cierres ni gastos cargados.</p>
+      </div>
+
+      <!-- Vista "Por tramo": el mes partido en días 1–10, 11–20 y 21–fin -->
+      <div id="cmp-vista-tramo" class="hidden">
+        <div class="month-nav">
+          <button id="cmp-mes-anterior" class="month-nav-btn" aria-label="Mes anterior">‹</button>
+          <div class="month-nav-label" id="cmp-mes-label">Mes</div>
+          <button id="cmp-mes-siguiente" class="month-nav-btn" aria-label="Mes siguiente">›</button>
+        </div>
+        <div class="cmp-seg cmp-seg-sm" id="cmp-modo" role="group" aria-label="Qué mostrar">
+          <button type="button" data-modo="total" aria-pressed="true">Total del tramo</button>
+          <button type="button" data-modo="dia" aria-pressed="false">Promedio por día</button>
+        </div>
+        <div id="cmp-tramo-contenido"></div>
+      </div>
     </section>
 
   </div>
