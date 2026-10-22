@@ -4,7 +4,7 @@
 //   · "Por mes":   un bloque por mes con Efectivo, Digital, suma y Gastos.
 //   · "Por tramo": un mes partido en días 1–10, 11–20 y 21–fin, para ver en
 //     qué parte del mes entra (y sale) la plata.
-//   · "Equipo":    cuánto subió o bajó el promedio por turno de cada
+//   · "Por empleado": cuánto subió o bajó el promedio por turno de cada
 //     integrante contra el mes anterior, según los cierres de turno.
 // ============================================================
 import { state } from "./state.js";

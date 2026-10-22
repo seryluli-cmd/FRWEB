@@ -73,7 +73,7 @@ function renderSeccionCards(biz) {
     { id: "gastos", emoji: "🧾", nombre: "Gastos", sub: "Cargar gastos y ver el balance entre socios" },
     { id: "facturado", emoji: "💰", nombre: "Cierre de Turno", sub: "Anotar efectivo y Digital" },
     { id: "resumen", emoji: "📊", nombre: "Resumen mensual", sub: "Ver los totales de cada mes", soloAdmin: true },
-    { id: "comparar", emoji: "⚖️", nombre: "Análisis avanzado", sub: "Meses, tramos del mes y rendimiento del equipo", soloAdmin: true },
+    { id: "comparar", emoji: "⚖️", nombre: "Análisis avanzado", sub: "Meses, tramos del mes y rendimiento por empleado", soloAdmin: true },
     { id: "gastosadmin", emoji: "🔒", nombre: "Gastos S/Admin", sub: "Alquiler y otros gastos privados", soloAdmin: true },
     { id: "ideas", emoji: "💡", nombre: "Caja de IDEAS", sub: "Aportar ideas para mejorar el negocio y el entorno laboral" },
     { id: "mantenimiento", emoji: "🔨", nombre: "Reportes de Mantenimiento", sub: "Reportar roturas o cosas para arreglar" }
