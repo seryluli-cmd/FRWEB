@@ -19,6 +19,8 @@
   --critical: #d03b3b;
   --critical-bg: #fbe9e9;
 
+  --oro: #e8c35a; --plata: #c3c7d0; --bronce: #d49a74; /* medallas: podio de "Por empleado" y tecla Estadísticas */
+
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
 }
@@ -299,81 +301,6 @@ input:focus, select:focus, textarea:focus {
 .negocio-wrap h1 { font-size: 21px; margin: 16px 0 4px; }
 .negocio-wrap > .muted { margin-bottom: 24px; }
 
-/* Pantalla "Elegir sección": sin ícono arriba (se sacó para ganar lugar
-   para las tarjetas), así que no necesita el padding superior pensado
-   para acomodarlo como en ¿Quién sos? / Elegir negocio. */
-#screen-seccion .negocio-wrap { padding-top: 24px; }
-#screen-seccion .negocio-wrap h1 { margin: 0; }
-
-.seccion-titulo-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 0 0 14px;
-}
-.seccion-titulo-row .logo-badge { margin: 0; }
-
-.frase-manuscrita {
-  position: relative;
-  display: inline-block;
-  margin-top: 0;
-  font-family: "Caveat", cursive;
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--series-1);
-  opacity: 0;
-  animation: frase-aparecer 0.5s ease-out 0.1s forwards;
-}
-@supports ((-webkit-background-clip: text) or (background-clip: text)) {
-  .frase-manuscrita {
-    background: linear-gradient(100deg, var(--series-1) 40%, #fff 50%, var(--series-1) 60%);
-    background-size: 250% 100%;
-    background-position: 200% 0;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: frase-aparecer 0.5s ease-out 0.1s forwards,
-               frase-brillo 1.1s ease-in-out 0.6s forwards;
-  }
-}
-.frase-manuscrita::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  right: -8px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #fff 0%, var(--series-1) 45%, transparent 72%);
-  transform: translate(0, -50%) scale(0);
-  opacity: 0;
-  animation: frase-explosion 0.45s ease-out 1.55s forwards;
-  pointer-events: none;
-}
-@keyframes frase-aparecer {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes frase-brillo {
-  from { background-position: 200% 0; }
-  to   { background-position: -50% 0; }
-}
-@keyframes frase-explosion {
-  0%   { transform: translate(0, -50%) scale(0);   opacity: 1; }
-  60%  { transform: translate(0, -50%) scale(2.4); opacity: 0.85; }
-  100% { transform: translate(0, -50%) scale(3.6); opacity: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .frase-manuscrita, .frase-manuscrita::after {
-    animation: none !important;
-    opacity: 1;
-    transform: none;
-    background: none;
-    color: var(--series-1);
-  }
-}
-
 .back-link {
   display: inline-block;
   border: none;
@@ -386,6 +313,102 @@ input:focus, select:focus, textarea:focus {
   margin-bottom: 8px;
   cursor: pointer;
 }
+
+/* ===== Pantalla "Elegir sección": un teclado =====
+   Cada sección es una tecla: pared dura abajo (sombra sin desenfoque) y al
+   tocarla baja de verdad — es la única animación de la pantalla. La
+   jerarquía va por tamaño: las dos de todos los días (Gastos y Cierre de
+   Turno) son teclas grandes y el resto, largas. El color de marca aparece
+   una sola vez, en la tecla "viva" (Cierre de Turno).
+   Los colores van en :root con las mismas tres variantes de tema que el
+   resto de la app (claro / oscuro automático / oscuro elegido a mano). */
+:root {
+  --deck: #ebeae4;
+  --tecla-cara: var(--surface-1);
+  --tecla-pared: #9b9a8e;
+  --tecla-viva-tinta: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --deck: #141415;
+    --tecla-cara: #2a2a2d;
+    --tecla-pared: #050506;
+    --tecla-viva-tinta: #0d0d0d;
+  }
+}
+:root[data-theme="dark"] {
+  --deck: #141415;
+  --tecla-cara: #2a2a2d;
+  --tecla-pared: #050506;
+  --tecla-viva-tinta: #0d0d0d;
+}
+
+/* La base del teclado cubre toda la pantalla, también la franja segura de
+   arriba (el body tiene padding-top), por eso se pinta en html y body. */
+:root:has(#screen-seccion.active), body:has(#screen-seccion.active) { background: var(--deck); }
+
+.seccion-wrap {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px 20px calc(44px + var(--safe-bottom));
+}
+.seccion-barra { display: flex; align-items: center; min-height: 44px; }
+.seccion-wrap h1 { margin: 14px 0 4px; font-size: 34px; line-height: 1.05; font-weight: 800; letter-spacing: 0.01em; }
+.seccion-lema { margin: 0 0 30px; font-size: 15px; color: var(--text-secondary); }
+
+.teclas { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 14px; }
+
+.tecla {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--tinta, var(--text-primary));
+  background: var(--cara, var(--tecla-cara));
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 4px 0 var(--pared, var(--tecla-pared));
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 70ms ease-out, box-shadow 70ms ease-out;
+}
+.tecla:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--pared, var(--tecla-pared)); }
+.tecla:focus-visible { outline: 3px solid var(--series-1); outline-offset: 4px; }
+
+.tecla-grande { flex-direction: column; justify-content: space-between; min-height: 142px; padding: 16px; border-radius: 20px; }
+.tecla-larga { grid-column: 1 / -1; align-items: center; min-height: 68px; padding: 12px 16px; }
+.tecla-viva {
+  --cara: var(--biz-color, var(--series-1));
+  --pared: color-mix(in srgb, var(--biz-color, var(--series-1)) 55%, #000);
+  --tinta: var(--tecla-viva-tinta);
+  --tinta-suave: color-mix(in srgb, var(--tecla-viva-tinta) 92%, transparent);
+}
+
+.tecla-icono { display: block; width: 28px; height: 28px; flex: none; }
+.tecla svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.tecla-texto { display: block; min-width: 0; }
+.tecla-nombre { display: block; font-size: 20px; font-weight: 800; line-height: 1.12; overflow-wrap: anywhere; }
+.tecla-larga .tecla-nombre { font-size: 16.5px; font-weight: 700; }
+.tecla-sub { display: block; margin-top: 4px; font-size: 13px; line-height: 1.3; color: var(--tinta-suave, var(--text-secondary)); }
+
+/* Atajo a Ajustes: una tecla chica en la esquina (antes era un círculo de
+   28px, muy chico para el dedo). margin-left:auto la deja a la derecha aunque
+   "Cambiar negocio" esté oculto, que es lo que pasa con un solo negocio. */
+.tecla-ajustes { width: 44px; height: 44px; margin-left: auto; align-items: center; justify-content: center; border-radius: 12px; }
+.tecla-ajustes svg { width: 22px; height: 22px; }
+
+@media (prefers-reduced-motion: reduce) { .tecla { transition: none; } }
+
+/* Estadísticas: la tecla lleva un mini podio, el mismo de "Por empleado". */
+.tecla-podio { display: flex; align-items: flex-end; gap: 3px; margin-left: auto; flex: none; }
+.tecla-podio span { display: block; width: 13px; border-radius: 3px 3px 0 0; }
+.tecla-podio span:nth-child(1) { height: 24px; background: var(--plata); }
+.tecla-podio span:nth-child(2) { height: 36px; background: var(--oro); }
+.tecla-podio span:nth-child(3) { height: 17px; background: var(--bronce); }
 
 .negocio-cards { display: flex; flex-direction: column; gap: 14px; text-align: left; }
 .negocio-card {
@@ -764,7 +787,6 @@ input:focus, select:focus, textarea:focus {
 /* "Por empleado": podio de quienes más subieron. Oro, plata y bronce son colores
    de medalla (el puesto); sube o baja sigue yendo con flecha y verde o rojo. */
 .cmp-podio-card {
-  --oro: #e8c35a; --plata: #c3c7d0; --bronce: #d49a74;
   background: color-mix(in srgb, var(--oro) 9%, var(--surface-1));
   border-color: color-mix(in srgb, var(--oro) 30%, var(--border));
 }
@@ -882,31 +904,6 @@ input:focus, select:focus, textarea:focus {
   line-height: 1;
 }
 .fab:active { opacity: 0.9; }
-
-/* Acceso directo a Ajustes desde "Elegir sección" — mismo estilo de botón
-   flotante que .fab, pero la mitad de tamaño, fondo blanco fijo (no sigue
-   el tema, así se ve igual y se distingue de las tarjetas en claro/oscuro)
-   y arriba a la derecha en vez de abajo. */
-.fab-ajustes {
-  position: fixed;
-  top: calc(14px + var(--safe-top));
-  right: 14px;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #fff;
-  color: #1a1a1a;
-  font-size: 14px;
-  border: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-  cursor: pointer;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 5;
-}
-.fab-ajustes:active { opacity: 0.85; }
 
 /* ===== Modal ===== */
 .modal-overlay {

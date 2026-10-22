@@ -28,7 +28,6 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -235,15 +234,16 @@
 
   <!-- ===== PANTALLA: ELEGIR SECCIÓN (Gastos / Facturado) ===== -->
   <div id="screen-seccion" class="screen">
-    <button id="btn-ajustes-shortcut" class="fab-ajustes" aria-label="Ir a Ajustes">⚙️</button>
-    <div class="negocio-wrap">
-      <button id="btn-back-to-negocio" class="back-link" aria-label="Volver">← Cambiar negocio</button>
-      <div class="seccion-titulo-row">
-        <span class="logo-badge small">📈</span>
-        <h1 id="seccion-negocio-nombre">GESTION FR</h1>
+    <div class="seccion-wrap">
+      <div class="seccion-barra">
+        <button id="btn-back-to-negocio" class="back-link" aria-label="Volver">← Cambiar negocio</button>
+        <button id="btn-ajustes-shortcut" class="tecla tecla-ajustes" aria-label="Ir a Ajustes">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/></svg>
+        </button>
       </div>
-      <p class="muted frase-manuscrita">Tu trabajo hace la diferencia.</p>
-      <div id="seccion-cards" class="negocio-cards"></div>
+      <h1 id="seccion-negocio-nombre">GESTION FR</h1>
+      <p class="seccion-lema">Tu trabajo hace la diferencia.</p>
+      <div id="seccion-cards" class="teclas"></div>
     </div>
   </div>
 
@@ -627,7 +627,7 @@
       <button id="btn-back-to-seccion-comparar" class="topbar-title" aria-label="Volver a la sección">
         <span class="topbar-back-arrow"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18"></polyline></svg></span>
         <span class="logo-badge small" id="comparar-icon-badge">$</span>
-        <span id="comparar-titulo">Análisis avanzado</span>
+        <span id="comparar-titulo">Estadísticas</span>
       </button>
     </header>
 

@@ -1,5 +1,5 @@
 // ============================================================
-// Análisis avanzado (solo admin) — tres vistas calculadas sobre los gastos y
+// Estadísticas (solo admin) — tres vistas calculadas sobre los gastos y
 // cierres ya guardados, no tocan ni mueven ningún dato:
 //   · "Por mes":   un bloque por mes con Efectivo, Digital, suma y Gastos.
 //   · "Por tramo": un mes partido en días 1–10, 11–20 y 21–fin, para ver en
