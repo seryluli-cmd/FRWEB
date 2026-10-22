@@ -438,34 +438,59 @@ function evolucionEquipo(act, ant) {
 
 const pctTexto = (v) => `${Math.abs(Math.round(v))}%`;
 
+const CORONA = `<svg class="cmp-corona" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/></svg>`;
+
+// El círculo con la inicial: el color es el de la persona en el resto de la app.
+function avatarHtml(nombre, clase = "") {
+  return `<span class="cmp-av ${clase}" style="background:${payerColorVar(nombre)}" aria-hidden="true">${escapeHtml(nombre.trim().charAt(0).toUpperCase())}</span>`;
+}
+
+// Hasta tres quienes más subieron, en el orden de un podio: 2.º, 1.º y 3.º. Lo
+// que sube cada una va con flecha y porcentaje; la altura del escalón marca el
+// puesto, no el valor.
+function podioHtml(top) {
+  const columnas = [top[1], top[0], top[2]].map((f) => {
+    if (!f) return `<div></div>`;
+    const puesto = top.indexOf(f) + 1;
+    return `
+      <div class="cmp-pd cmp-pd-${puesto}">
+        <div class="cmp-pd-av">${puesto === 1 ? CORONA : ""}${avatarHtml(f.nombre)}</div>
+        <div class="cmp-pd-nombre">${escapeHtml(f.nombre)}</div>
+        <div class="cmp-pd-pct"><span class="cmp-flecha cmp-sube">▲</span>${pctTexto(f.variacion)}</div>
+        <div class="cmp-pd-det">${compacto(f.previo.promedio)} → ${compacto(f.promedio)}</div>
+        <div class="cmp-pd-base"><span>${puesto}</span></div>
+      </div>`;
+  });
+  return `<div class="cmp-podio" role="list" aria-label="Quienes más subieron su promedio por turno">${columnas.join("")}</div>`;
+}
+
 function equipoHeroHtml(act, ant, filas) {
   const comparables = filas.filter(f => f.variacion !== null);
   const nombreAnt = mesLabel(ant.base);
-  const mejor = comparables[0];
+  const top = comparables.filter(f => f.variacion > 0).slice(0, 3);
   const peor = comparables[comparables.length - 1];
   const detalle = (f) => `${money(Math.round(f.previo.promedio))} → ${money(Math.round(f.promedio))} por turno`;
 
   let cuerpo;
-  if (!mejor) {
+  if (!comparables.length) {
     cuerpo = `<p class="cmp-hero-frase">Todavía no hay integrantes con al menos ${MIN_TURNOS} turnos en ${mesLabel(act.base)} y en ${nombreAnt} para comparar.</p>`;
-  } else if (mejor.variacion > 0) {
-    cuerpo = `
-      <div class="cmp-eq-ganador">
-        <span class="cmp-eq-avatar" style="background:${payerColorVar(mejor.nombre)}">${escapeHtml(mejor.nombre.trim().charAt(0).toUpperCase())}</span>
-        <div><div class="cmp-eq-ganador-nombre">${escapeHtml(mejor.nombre)}</div><div class="cmp-hero-frase cmp-eq-detalle">${detalle(mejor)} · ${mejor.turnos} turnos</div></div>
-      </div>
-      <div class="cmp-hero-valor"><span class="cmp-flecha cmp-sube cmp-flecha-grande">▲</span>${pctTexto(mejor.variacion)}</div>`;
+  } else if (top.length) {
+    cuerpo = podioHtml(top);
   } else {
     cuerpo = `<p class="cmp-hero-frase">Ninguna integrante mejoró su promedio por turno respecto de ${nombreAnt}.</p>`;
   }
 
-  const baja = peor && peor !== mejor && peor.variacion < 0
-    ? `<div class="cmp-hero-stats cmp-eq-baja"><div><span class="cmp-stat-label">Mayor baja</span><b>${escapeHtml(peor.nombre)} <span class="cmp-baja">▼ ${pctTexto(peor.variacion)}</span></b><span class="cmp-eq-detalle">${detalle(peor)}</span></div></div>`
+  const baja = peor && peor.variacion < 0
+    ? `<div class="cmp-baja-fila">
+        ${avatarHtml(peor.nombre, "cmp-av-s")}
+        <div class="cmp-baja-txt"><span class="cmp-baja-rotulo">Mayor baja</span><b>${escapeHtml(peor.nombre)}</b><small>${detalle(peor)}</small></div>
+        <div class="cmp-baja-pct"><span class="cmp-flecha cmp-baja">▼</span>${pctTexto(peor.variacion)}</div>
+      </div>`
     : "";
 
   return `
-    <section class="cmp-card cmp-hero">
-      <div class="cmp-hero-label">Mayor mejora contra ${nombreAnt}</div>
+    <section class="cmp-card cmp-podio-card${ui.animar ? " cmp-anim" : ""}">
+      <div class="cmp-podio-cab"><h3 class="cmp-podio-titulo">Quién más subió</h3><span class="cmp-podio-mes">contra ${nombreAnt}</span></div>
       ${cuerpo}
       ${baja}
     </section>`;
@@ -476,8 +501,9 @@ function equipoHeroHtml(act, ant, filas) {
 // estado no depende solo del color.
 function equipoVariacionHtml(ant, filas) {
   const maxAbs = Math.max(10, ...filas.map(f => Math.abs(f.variacion || 0)));
-  const items = filas.map(f => {
-    const nombre = `<div class="cmp-eq-nombre"><span class="cmp-pt" style="background:${payerColorVar(f.nombre)}"></span><span>${escapeHtml(f.nombre)}<small>${f.turnos} ${f.turnos === 1 ? "turno" : "turnos"}</small></span></div>`;
+  const items = filas.map((f, i) => {
+    const medalla = f.variacion > 0 && i < 3 ? ` cmp-m${i + 1}` : "";
+    const nombre = `<div class="cmp-eq-nombre">${avatarHtml(f.nombre, "cmp-av-s" + medalla)}<span>${escapeHtml(f.nombre)}<small>${f.turnos} ${f.turnos === 1 ? "turno" : "turnos"}</small></span></div>`;
     if (f.variacion === null) {
       const motivo = !f.previo ? `sin turnos en ${mesLabel(ant.base)}` : `menos de ${MIN_TURNOS} turnos`;
       return `<div class="cmp-eq-fila">${nombre}<div class="cmp-eq-pocos">${motivo}</div></div>`;
@@ -492,7 +518,7 @@ function equipoVariacionHtml(ant, filas) {
   }).join("");
   return `
     <section class="cmp-card">
-      <h3 class="cmp-card-titulo">Variación del promedio por turno</h3>
+      <h3 class="cmp-card-titulo">Ranking de variación</h3>
       <p class="cmp-card-sub">Contra ${mesLabel(ant.base)}. Solo se comparan quienes tienen al menos ${MIN_TURNOS} turnos en los dos meses.</p>
       ${items}
     </section>`;
