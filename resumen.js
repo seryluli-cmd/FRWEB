@@ -280,6 +280,72 @@ export function renderResumen() {
   }
 }
 
+// ---------- Render: Comparar meses (solo admin) ----------
+
+// Variación porcentual contra el mes anterior, como texto corto con flecha
+// ("▲ 12%" / "▼ 8%"). Vacío si el mes anterior no tiene nada con qué comparar.
+function variacionHtml(actual, anterior, subeEsBueno) {
+  if (!anterior) return "";
+  const pct = Math.round(((actual - anterior) / anterior) * 100);
+  if (pct === 0) return `<span class="comparar-var">= 0%</span>`;
+  const bueno = (pct > 0) === subeEsBueno;
+  return `<span class="comparar-var" style="color:var(--${bueno ? "good" : "critical"})">${pct > 0 ? "▲" : "▼"} ${Math.abs(pct)}%</span>`;
+}
+
+// Un bloque por mes con datos (de los meses que ya trae el historial cargado
+// de Firestore), del más reciente al más antiguo: Efectivo, Digital, la suma
+// de los dos y Gastos totales. Usa las mismas cuentas que Resumen mensual —
+// el total facturado es la suma de los importes de los cierres, igual que
+// allá, así que ambas pantallas siempre muestran el mismo número.
+export function renderComparar() {
+  const wrap = $("#comparar-meses");
+  if (!wrap || !state.esAdmin) return;
+
+  const meses = new Map();
+  const mesDe = (item) => {
+    const d = fechaDeRegistro(item);
+    const key = d.getFullYear() * 12 + d.getMonth();
+    if (!meses.has(key)) {
+      meses.set(key, { fecha: new Date(d.getFullYear(), d.getMonth(), 1), efectivo: 0, digital: 0, total: 0, gastos: 0 });
+    }
+    return meses.get(key);
+  };
+  facturacionesDelNegocio().forEach(f => {
+    const m = mesDe(f);
+    m.efectivo += Number(f.efectivo) || 0;
+    m.digital += Number(f.digital) || 0;
+    m.total += Number(f.importe) || 0;
+  });
+  gastosDelNegocio().forEach(g => { mesDe(g).gastos += Number(g.importe) || 0; });
+
+  const lista = Array.from(meses.entries()).sort((a, b) => b[0] - a[0]);
+  wrap.innerHTML = "";
+  $("#comparar-empty").classList.toggle("hidden", lista.length > 0);
+  const maxVal = Math.max(1, ...lista.map(([, m]) => Math.max(m.total, m.gastos)));
+
+  lista.forEach(([key, m]) => {
+    const prev = meses.get(key - 1);
+    // Cierres cargados antes del desglose Efectivo/Digital no tienen esos
+    // campos: el total sí los cuenta, pero Efectivo+Digital queda más bajo.
+    const sinDesglose = m.total - (m.efectivo + m.digital) > 0.5;
+    const card = document.createElement("div");
+    card.className = "socio-total-card";
+    card.innerHTML = `
+      <div class="socio-total-row">
+        <div class="socio-total-name">${mesLabel(m.fecha)}</div>
+      </div>
+      <div class="comparar-fila"><span><span class="socio-dot" style="background:var(--good)"></span> Efectivo</span><b>${money(m.efectivo)}</b></div>
+      <div class="comparar-fila"><span><span class="socio-dot" style="background:var(--series-1)"></span> Digital</span><b>${money(m.digital)}</b></div>
+      <div class="comparar-fila comparar-fila-total"><span>Efectivo + Digital</span><b>${money(m.total)}${variacionHtml(m.total, prev && prev.total, true)}</b></div>
+      ${sinDesglose ? `<div class="comparar-nota">Hay cierres viejos sin desglose Efectivo/Digital.</div>` : ""}
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round((m.total / maxVal) * 100)}%;background:var(--good)"></div></div>
+      <div class="comparar-fila comparar-fila-gastos"><span>🧾 Gastos totales</span><b>${money(m.gastos)}${variacionHtml(m.gastos, prev && prev.gastos, false)}</b></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round((m.gastos / maxVal) * 100)}%;background:var(--text-muted)"></div></div>
+    `;
+    wrap.appendChild(card);
+  });
+}
+
 // ---------- Render: Balance ----------
 export function renderBalance() {
   if (!state.socios.length) return;

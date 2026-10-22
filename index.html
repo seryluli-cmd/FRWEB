@@ -620,6 +620,25 @@
     <button id="fab-add-inversion" class="fab hidden" aria-label="Actualizar monto recuperado">+</button>
   </div>
 
+  <!-- ===== PANTALLA: COMPARAR MESES (solo admin) ===== -->
+  <div id="screen-comparar" class="screen">
+
+    <header class="topbar">
+      <button id="btn-back-to-seccion-comparar" class="topbar-title" aria-label="Volver a la sección">
+        <span class="topbar-back-arrow"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18"></polyline></svg></span>
+        <span class="logo-badge small" id="comparar-icon-badge">$</span>
+        <span id="comparar-titulo">Comparar meses</span>
+      </button>
+    </header>
+
+    <section class="tab active">
+      <p class="muted small" style="margin-bottom:16px;">Facturado (Efectivo, Digital y la suma de los dos) y Gastos totales de cada mes, del más reciente al más antiguo.</p>
+      <div id="comparar-meses" class="socios-totales"></div>
+      <p id="comparar-empty" class="muted small hidden">Todavía no hay cierres ni gastos cargados.</p>
+    </section>
+
+  </div>
+
   <!-- ===== PANTALLA: FOTOS GUARDADAS ===== -->
   <div id="screen-fotos" class="screen">
 

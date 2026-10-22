@@ -7,7 +7,7 @@ import { $, $$, escapeHtml, showScreen } from "./utils.js";
 import { puedeVerInversion } from "./identidad.js";
 import { renderGastos, renderGastosAdmin } from "./gastos.js";
 import { renderFacturado } from "./facturado.js";
-import { renderResumen, renderBalance } from "./resumen.js";
+import { renderResumen, renderBalance, renderComparar } from "./resumen.js";
 import { renderIdeas } from "./ideas.js";
 import { renderReportes } from "./reportes.js";
 import { renderInversion } from "./inversion.js";
@@ -46,6 +46,10 @@ export function selectNegocio(id) {
   $("#facturado-icon-badge").textContent = biz.emoji;
   $("#facturado-icon-badge").style.background = biz.color;
 
+  // Pantalla "Comparar meses" — badge del topbar
+  $("#comparar-icon-badge").textContent = biz.emoji;
+  $("#comparar-icon-badge").style.background = biz.color;
+
   // Pantalla "Resumen mensual" — badge del topbar
   $("#resumen-titulo").textContent = biz.nombre + " — Resumen";
   $("#resumen-icon-badge").textContent = biz.emoji;
@@ -68,6 +72,7 @@ function renderSeccionCards(biz) {
     { id: "gastos", emoji: "🧾", nombre: "Gastos", sub: "Cargar gastos y ver el balance entre socios" },
     { id: "facturado", emoji: "💰", nombre: "Cierre de Turno", sub: "Anotar efectivo y Digital" },
     { id: "resumen", emoji: "📊", nombre: "Resumen mensual", sub: "Ver los totales de cada mes", soloAdmin: true },
+    { id: "comparar", emoji: "⚖️", nombre: "Comparar meses", sub: "Efectivo, Digital, total y gastos mes a mes", soloAdmin: true },
     { id: "gastosadmin", emoji: "🔒", nombre: "Gastos S/Admin", sub: "Alquiler y otros gastos privados", soloAdmin: true },
     { id: "ideas", emoji: "💡", nombre: "Caja de IDEAS", sub: "Aportar ideas para mejorar el negocio y el entorno laboral" },
     { id: "mantenimiento", emoji: "🔨", nombre: "Reportes de Mantenimiento", sub: "Reportar roturas o cosas para arreglar" }
@@ -108,6 +113,10 @@ function selectSeccion(id) {
     state.resumenCategoriasAbiertas.clear(); // cada visita arranca con todas las categorías cerradas
     renderResumen();
     showScreen("screen-resumen");
+  } else if (id === "comparar") {
+    if (!state.esAdmin) return;
+    renderComparar();
+    showScreen("screen-comparar");
   } else if (id === "gastosadmin") {
     state.gastosAdminMesOffset = 0;
     renderGastosAdmin();
