@@ -39,6 +39,7 @@ los event listeners de la UI, pero ya no tiene la lógica de cada pantalla.
 | [gastos.js](gastos.js) | Pantalla Gastos y Gastos S/Admin: listado, modal, fotos, chips de pagador, CSV. |
 | [facturado.js](facturado.js) | Pantalla Facturado / Cierre de Turno, incluida la detección de cajas faltantes. |
 | [resumen.js](resumen.js) | Resumen mensual y Balance entre socios. |
+| [comparar.js](comparar.js) | Comparar meses (solo admin): vista "Por mes" (Efectivo, Digital, suma y Gastos de cada mes) y vista "Por tramo" (días 1–10, 11–20 y 21–fin: gráfico de columnas, total o promedio por día, comparación con el mes anterior y tabla). Gráficos en SVG a mano, sin librerías. |
 | [checklist.js](checklist.js) | Fábrica compartida por Ideas y Reportes de Mantenimiento (`crearModuloChecklist`). |
 | [ideas.js](ideas.js) / [reportes.js](reportes.js) | Configuran `checklist.js` con su colección, ids del DOM y textos puntuales. |
 | [inversion.js](inversion.js) | Pantalla "Inversión Recuperada" (acceso restringido por nombre). |
