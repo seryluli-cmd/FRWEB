@@ -50,10 +50,18 @@ function fechaDeInversion(inv) {
   return inv.creadoEn && inv.creadoEn.toDate ? inv.creadoEn.toDate() : new Date(inv.creadoEn || Date.now());
 }
 
+// Pedido puntual de Sergio: mostrar "Millones" al lado del total recuperado
+// y de la meta (ej. "$27.000.000 Millones") — es solo un sufijo de texto
+// sobre lo que ya arma money(), no una conversión de unidades. Solo va en
+// esos dos números: en cada retiro suelto sería falso ("$500 Millones").
+function moneyMillones(n) {
+  return money(n) + " Millones";
+}
+
 export function renderInversion() {
   const actual = inversionActual();
-  $("#inversion-actual").textContent = money(actual);
-  $("#inversion-meta-sub").textContent = `de ${money(INVERSION_META)} a recuperar`;
+  $("#inversion-actual").textContent = moneyMillones(actual);
+  $("#inversion-meta-sub").textContent = `de ${moneyMillones(INVERSION_META)} a recuperar`;
   const pct = INVERSION_META ? Math.min(100, Math.round((actual / INVERSION_META) * 100)) : 0;
   $("#inversion-bar").style.width = pct + "%";
 

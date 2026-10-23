@@ -124,7 +124,10 @@ transacción diaria), no crecen de la misma forma.
   inversion.js). Los docs viejos, sin `tipo`, guardaban el total acumulado a
   su fecha: el más reciente de ellos entra como base y los retiros se suman
   encima, así no hizo falta migrar datos. La meta fija ($55.000.000,
-  `INVERSION_META` en state.js) no se guarda en Firestore.
+  `INVERSION_META` en state.js) no se guarda en Firestore. El total y la meta
+  se muestran con el sufijo "Millones" (`moneyMillones()` en inversion.js) —
+  es solo texto agregado al valor ya formateado por `money()`, no una
+  conversión de unidades; los retiros sueltos del historial no lo llevan.
   Pantalla exclusiva: ver "Identidad y permisos" abajo.
 - **`reportes`** — misma estructura y mecánica que `ideas` (ver arriba),
   pero para "Reportes de Mantenimiento" 🔨: `{ texto, estado, votos,
