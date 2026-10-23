@@ -83,7 +83,7 @@ export const state = {
   facturaciones: [],    // TODOS los cierres diarios — [{id, importe, registradoPor, fecha, negocio}]
   ideas: [],            // Ideas de mejora — [{id, texto, estado, propuestoPor, creadoEn}]
   reportes: [],         // Reportes de mantenimiento — [{id, texto, estado, propuestoPor, votos, creadoEn}]
-  inversiones: [],      // Historial de "Inversión Recuperada" — [{id, monto, registradoPor, creadoEn}]. `monto` es el TOTAL acumulado a esa fecha, no un incremento.
+  inversiones: [],      // Historial de "Inversión Recuperada" — [{id, tipo, monto, registradoPor, creadoEn}]. Con tipo "retiro", `monto` es un retiro suelto que se suma al total; sin `tipo` (registros viejos) es el TOTAL acumulado a esa fecha. Ver inversionActual() en inversion.js.
   cajaInicio: [],       // Fondo con el que arrancó cada mes — [{id, monto, registradoPor, actualizadoEn}], id = "YYYY-MM" (ver resumen.js). No entra en gastos/rentabilidad, es solo informativo.
 
   negocioActual: null,  // "gestionfr" (siempre — acá hay un solo negocio)

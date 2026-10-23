@@ -588,7 +588,7 @@
   <!-- ===== PANTALLA: INVERSIÓN RECUPERADA ===== -->
   <!-- Solo visible para Sergio y Pola (ver puedeVerInversion en identidad.js) — el
        resto ni ve la tarjeta para entrar en screen-seccion. Adentro, solo
-       Sergio puede cargar actualizaciones y borrar (ver puedeCargarInversion);
+       Sergio puede cargar retiros y borrar (ver puedeCargarInversion);
        Pola solo mira el historial. -->
   <div id="screen-inversion" class="screen">
 
@@ -602,22 +602,22 @@
 
     <section class="tab active">
       <div class="stat-hero">
-        <div class="stat-hero-label stat-hero-label-lg">🏦 Recuperado</div>
+        <div class="stat-hero-label stat-hero-label-lg">🏦 Total recuperado</div>
         <div class="stat-hero-value" id="inversion-actual">$0</div>
         <div class="stat-hero-sub" id="inversion-meta-sub">de $0 a recuperar</div>
         <div class="bar-track" style="margin-top:10px;"><div class="bar-fill" id="inversion-bar" style="width:0%;background:var(--good)"></div></div>
       </div>
 
       <div id="inversion-empty" class="empty-state hidden">
-        <p>Todavía no hay actualizaciones cargadas.</p>
-        <p class="muted small">Tocá el botón + para cargar el monto recuperado hasta hoy.</p>
+        <p>Todavía no hay retiros cargados.</p>
+        <p class="muted small">Tocá el botón + para cargar el primer retiro.</p>
       </div>
 
-      <h3 class="section-title">Historial de actualizaciones</h3>
+      <h3 class="section-title">Historial de retiros</h3>
       <ul id="inversion-list" class="expenses-list"></ul>
     </section>
 
-    <button id="fab-add-inversion" class="fab hidden" aria-label="Actualizar monto recuperado">+</button>
+    <button id="fab-add-inversion" class="fab hidden" aria-label="Cargar retiro">+</button>
   </div>
 
   <!-- ===== PANTALLA: COMPARAR MESES (solo admin) ===== -->
@@ -951,15 +951,15 @@
     </div>
   </div>
 
-  <!-- ===== MODAL: ACTUALIZAR INVERSIÓN RECUPERADA ===== -->
+  <!-- ===== MODAL: CARGAR RETIRO (INVERSIÓN RECUPERADA) ===== -->
   <div id="modal-add-inversion" class="modal-overlay">
     <div class="modal-sheet">
       <div class="modal-handle"></div>
-      <h2>Actualizar monto recuperado</h2>
-      <p class="muted small">Ingresá el TOTAL acumulado que llevás recuperado hasta hoy (no lo que sumaste en esta actualización).</p>
+      <h2>Cargar retiro</h2>
+      <p class="muted small">Ingresá solo lo que retiraste ahora. Se suma solo al total recuperado.</p>
 
       <div class="field">
-        <label for="input-monto-inversion">Monto total recuperado</label>
+        <label for="input-monto-inversion">Monto que retiraste</label>
         <input type="text" id="input-monto-inversion" inputmode="decimal" placeholder="0">
       </div>
 

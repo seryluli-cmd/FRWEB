@@ -117,15 +117,14 @@ transacción diaria), no crecen de la misma forma.
   es `"pendiente"` o `"concretada"`; `votos` es un array de nombres (🔥,
   toggle libre). Pendientes ordenadas por cantidad de votos. Cualquiera
   crea/vota/tilda; solo el admin borra.
-- **`inversion`** — `{ monto, registradoPor, creadoEn }`. Historial de
-  "Inversión Recuperada": cada doc guarda el monto **total acumulado** que
-  Sergio (el inversor) lleva recuperado del negocio a esa fecha — no un
-  incremento. Lo que se muestra como "recuperado hasta ahora" es el `monto`
-  del doc más reciente (`inversionActual()` en inversion.js); la meta fija
-  ($55.000.000, `INVERSION_META` en state.js) no se guarda en Firestore. Los
-  montos de esta pantalla se muestran con el sufijo "Millones" (ver
-  `renderInversion()` en inversion.js) — es solo texto agregado al valor ya
-  formateado por `money()`, no una conversión de unidades.
+- **`inversion`** — `{ tipo, monto, registradoPor, creadoEn }`. Historial de
+  "Inversión Recuperada": cada doc nuevo es **un retiro** de Sergio (el
+  inversor), con `tipo: "retiro"` y su fecha/hora en `creadoEn`. El "total
+  recuperado" es la **suma de todos los retiros** (`inversionActual()` en
+  inversion.js). Los docs viejos, sin `tipo`, guardaban el total acumulado a
+  su fecha: el más reciente de ellos entra como base y los retiros se suman
+  encima, así no hizo falta migrar datos. La meta fija ($55.000.000,
+  `INVERSION_META` en state.js) no se guarda en Firestore.
   Pantalla exclusiva: ver "Identidad y permisos" abajo.
 - **`reportes`** — misma estructura y mecánica que `ideas` (ver arriba),
   pero para "Reportes de Mantenimiento" 🔨: `{ texto, estado, votos,
@@ -218,7 +217,7 @@ Aparte de `esAdmin`, hay un permiso independiente por **nombre exacto**
 Recuperada"** — la primera tarjeta de `screen-seccion`, arriba de Gastos:
 solo aparece para `usuarioActual === "Sergio"` o `"Pola"`
 (`puedeVerInversion()` en identidad.js); del resto no la ve ni sabe que existe.
-Adentro, solo Sergio puede cargar una actualización o borrar una del
+Adentro, solo Sergio puede cargar un retiro o borrar uno del
 historial (`puedeCargarInversion()`, mismo archivo) — Pola solo mira. Mismo patrón que
 usa el "Historial de logeos" en Ajustes (visible solo si
 `usuarioActual === "Sergio"`).
