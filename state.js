@@ -34,7 +34,7 @@ export const NEUTRAL_VAR = "var(--text-muted)";
 // único que cambia es que goToNegocioOrHome() deja de saltear la pantalla
 // de elegir negocio en cuanto el array tiene más de un elemento.
 export const NEGOCIOS = [
-  { id: "gestionfr", nombre: "Gestion FR", emoji: "⌨️", color: "var(--series-1)" }
+  { id: "gestionfr", nombre: "Gestión Central", emoji: "⌨️", color: "var(--series-1)" }
 ];
 
 // Cifra fija que pidió Sergio (el inversor) para "Inversión Recuperada" —

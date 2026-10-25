@@ -1,7 +1,7 @@
 {
-  "name": "Gestion FR",
-  "short_name": "Gestion FR",
-  "description": "Registro de gastos y facturación — Gestion FR",
+  "name": "Gestión Central",
+  "short_name": "Gestión Central",
+  "description": "Registro de gastos y facturación — Gestión Central",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

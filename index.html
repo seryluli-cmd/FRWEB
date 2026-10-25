@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>Gestion FR</title>
+<title>Gestión Central</title>
 <script>
 // Aplica el tema guardado (Ajustes → Tema) ANTES de que se cargue styles.css,
 // para que no se vea un parpadeo del tema del sistema y después el elegido.
@@ -14,7 +14,7 @@
   if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
 })();
 </script>
-<meta name="description" content="Registro de gastos y facturación de Gestion FR">
+<meta name="description" content="Registro de gastos y facturación de Gestión Central">
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -22,7 +22,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Gestion FR">
+<meta name="apple-mobile-web-app-title" content="Gestión Central">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
 
@@ -94,7 +94,7 @@
         </g>
       </svg>
       <div class="loading-texto">
-        <p class="loading-nombre">Gestion FR</p>
+        <p class="loading-nombre">Gestión Central</p>
         <div class="loading-barra"><div class="loading-barra-fill"></div></div>
         <p class="muted" id="loading-msg">Cargando…</p>
         <button id="btn-retry-boot" class="btn-primary hidden">Reintentar</button>
@@ -107,7 +107,7 @@
   <div id="screen-setup" class="screen">
     <div class="setup-wrap">
       <div class="logo-badge">⌨️</div>
-      <h1>Gestion FR</h1>
+      <h1>Gestión Central</h1>
       <p class="muted">Configuración inicial — se hace una sola vez por navegador.</p>
 
       <!-- PASO 1: se pide siempre, sea la primera persona o la cuarta -->
@@ -185,7 +185,7 @@
   <div id="screen-negocio" class="screen">
     <div class="negocio-wrap">
       <div class="logo-badge">⌨️</div>
-      <h1>Gestion FR</h1>
+      <h1>Gestión Central</h1>
       <p class="muted">Elegí qué querés ver.</p>
 
       <button type="button" id="btn-ideas-main" class="negocio-card idea-negocio-card">
@@ -286,7 +286,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/></svg>
         </button>
       </div>
-      <h1 id="seccion-negocio-nombre">GESTION FR</h1>
+      <h1 id="seccion-negocio-nombre">GESTIÓN CENTRAL</h1>
       <p class="seccion-lema">Tu trabajo hace la diferencia.</p>
       <div id="seccion-cards" class="teclas"></div>
     </div>

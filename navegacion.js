@@ -79,7 +79,7 @@ const ICONOS_SECCION = {
 // Mini podio de la tecla Estadísticas (ver .tecla-podio en styles.css).
 const PODIO_MINI = '<span class="tecla-podio" aria-hidden="true"><span></span><span></span><span></span></span>';
 
-// El título "GESTION FR" y la frase quedaron fijos en el HTML (sin depender de
+// El título "GESTIÓN CENTRAL" y la frase quedaron fijos en el HTML (sin depender de
 // biz.nombre/biz.emoji como el resto de las pantallas).
 //
 // Cada sección es una "tecla" (ver "Elegir sección" en styles.css). El orden
