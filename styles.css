@@ -211,10 +211,10 @@ body {
   transform: rotateX(-35deg) rotateY(45deg);
   animation: holo-gira 14s linear infinite;
 }
-/* Solo en la pantalla de carga: +50% (9.33s), después +25% más
-   (9.33/1.25=7.46s) → gira 1.875x más rápido que el original (14s). El
-   de "¿Quién sos?" sigue a 14s. */
-.loading-wrap .holo-cubo3d { animation-duration: 7.46s; }
+/* Solo en la pantalla de carga: +50% (9.33s), +25% más (7.46s), +40%
+   más (7.46/1.4=5.33s) → gira 2.625x más rápido que el original (14s).
+   El de "¿Quién sos?" sigue a 14s. */
+.loading-wrap .holo-cubo3d { animation-duration: 5.33s; }
 .holo-cara {
   position: absolute; inset: 0;
   border: calc(var(--holo-u) * 2.5) solid color-mix(in srgb, var(--holo-1) 30%, #fff);
