@@ -36,25 +36,70 @@
 <div id="app">
 
   <!-- ===== PANTALLA DE CARGA ===== -->
+  <!-- Siempre oscura, en cualquier tema: continúa la pantalla de arranque que
+       arma Android (mismo fondo #020814 que background_color del manifest y
+       el mismo cubo que el ícono), así el paso de una a otra no se nota.
+       El dibujo es un SVG de 390×844 que se escala entero; la animación está
+       en styles.css ("Pantalla de carga: cubo holográfico"). -->
   <div id="screen-loading" class="screen active">
     <div class="loading-wrap">
-      <div class="loading-hourglass" role="img" aria-label="Cargando">
-        <svg class="hourglass" viewBox="0 0 64 64" aria-hidden="true">
-          <defs>
-            <clipPath id="hg-clip-top"><path d="M21 14H43V18C43 26 34 30 33 32H31C30 30 21 26 21 18Z"/></clipPath>
-            <clipPath id="hg-clip-bottom"><path d="M31 32H33C34 34 43 38 43 46V50H21V46C21 38 30 34 31 32Z"/></clipPath>
-          </defs>
-          <path class="hg-glass-fill" d="M21 14V18C21 26 30 30 31 32C30 34 21 38 21 46V50H43V46C43 38 34 34 33 32C34 30 43 26 43 18V14Z"/>
-          <g clip-path="url(#hg-clip-top)"><rect class="hg-sand-top" x="21" y="14" width="22" height="18"/></g>
-          <g clip-path="url(#hg-clip-bottom)"><rect class="hg-sand-bottom" x="21" y="32" width="22" height="18"/></g>
-          <line class="hg-stream" x1="32" y1="31" x2="32" y2="50"/>
-          <path class="hg-glass" d="M21 14V18C21 26 30 30 31 32C30 34 21 38 21 46V50M43 14V18C43 26 34 30 33 32C34 34 43 38 43 46V50"/>
-          <path class="hg-cap" d="M16 12H48M16 52H48"/>
-        </svg>
+      <svg class="holo" viewBox="0 0 390 844" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+        <defs>
+          <radialGradient id="holo-glow" cx="195" cy="330" r="240" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#22d3ee" stop-opacity=".22"/><stop offset=".6" stop-color="#7c3aed" stop-opacity=".1"/><stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></radialGradient>
+          <linearGradient id="holo-arista" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#e879f9"/></linearGradient>
+          <linearGradient id="holo-haz-g" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#22d3ee" stop-opacity=".26"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></linearGradient>
+          <linearGradient id="holo-piso-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+          <radialGradient id="holo-base-g" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#22d3ee" stop-opacity=".85"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></radialGradient>
+          <pattern id="holo-puntos" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r=".8" fill="#fff" fill-opacity=".07"/></pattern>
+          <!-- líneas de barrido: suben solas (animateTransform), 4px de período así el loop no salta -->
+          <pattern id="holo-scan" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="1.2" fill="#fff" fill-opacity=".08"/><animateTransform attributeName="patternTransform" type="translate" from="0 0" to="0 4" dur=".6s" repeatCount="indefinite"/></pattern>
+          <mask id="holo-piso-m" maskUnits="userSpaceOnUse" x="0" y="0" width="390" height="844"><rect x="0" y="540" width="390" height="260" fill="url(#holo-piso-g)"/></mask>
+        </defs>
+        <rect width="390" height="844" fill="#020814"/>
+        <rect width="390" height="844" fill="url(#holo-puntos)"/>
+        <g fill="#fff">
+          <circle cx="46" cy="96" r="1.3" opacity=".7"/><circle cx="332" cy="72" r="1.1" opacity=".6"/><circle cx="358" cy="210" r="1" opacity=".5"/>
+          <circle cx="28" cy="300" r="1.2" opacity=".5"/><circle cx="300" cy="150" r=".9" opacity=".5"/><circle cx="90" cy="190" r=".9" opacity=".45"/>
+        </g>
+        <g mask="url(#holo-piso-m)" stroke="#22d3ee" stroke-opacity=".16" stroke-width="1">
+          <path d="M0 566H390M0 596H390M0 634H390M0 682H390M0 742H390"/>
+          <path d="M195 540L-180 844M195 540L-50 844M195 540L75 844M195 540V844M195 540L315 844M195 540L440 844M195 540L570 844"/>
+        </g>
+        <circle cx="195" cy="330" r="240" fill="url(#holo-glow)"/>
+        <polygon class="holo-haz" points="90,540 300,540 262,170 128,170" fill="url(#holo-haz-g)"/>
+        <g class="holo-base">
+          <ellipse cx="195" cy="540" rx="150" ry="30" fill="url(#holo-base-g)"/>
+          <ellipse cx="195" cy="540" rx="132" ry="25" fill="none" stroke="#67e8f9" stroke-width="1.6" opacity=".85"/>
+          <ellipse cx="195" cy="540" rx="96" ry="18" fill="none" stroke="#67e8f9" stroke-width="1.2" opacity=".5"/>
+          <ellipse cx="195" cy="540" rx="60" ry="11" fill="none" stroke="#67e8f9" stroke-width="1" opacity=".3"/>
+        </g>
+        <g class="holo-cubo">
+          <g transform="translate(195 330) scale(6.2) translate(-50 -52)">
+            <polygon points="50,26 72,39 50,52 28,39" fill="#67e8f9" fill-opacity=".22"/>
+            <polygon points="28,39 50,52 50,78 28,65" fill="#a855f7" fill-opacity=".2"/>
+            <polygon points="72,39 50,52 50,78 72,65" fill="#22d3ee" fill-opacity=".16"/>
+            <!-- brillo de las aristas: trazos superpuestos en vez de desenfoque, más liviano de animar -->
+            <path d="M50 26L72 39L72 65L50 78L28 65L28 39ZM28 39L50 52L72 39M50 52V78" fill="none" stroke="url(#holo-arista)" stroke-width="2.6" stroke-linejoin="round" opacity=".18"/>
+            <path d="M50 26L72 39L72 65L50 78L28 65L28 39ZM28 39L50 52L72 39M50 52V78" fill="none" stroke="url(#holo-arista)" stroke-width="1.5" stroke-linejoin="round" opacity=".35"/>
+            <path d="M50 26L72 39L72 65L50 78L28 65L28 39ZM28 39L50 52L72 39M50 52V78" fill="none" stroke="url(#holo-arista)" stroke-width=".8" stroke-linejoin="round" opacity=".7"/>
+            <path d="M50 26L72 39L72 65L50 78L28 65L28 39ZM28 39L50 52L72 39M50 52V78" fill="none" stroke="#f0fdff" stroke-width=".55" stroke-linejoin="round"/>
+            <polygon points="32,67.36 35.5,69.43 35.5,61.43 32,59.36" fill="#22d3ee" opacity=".95"/>
+            <polygon points="38.5,71.2 42,73.27 42,60.27 38.5,58.2" fill="#a78bfa" opacity=".95"/>
+            <polygon points="45,75.05 48.5,77.12 48.5,59.12 45,57.05" fill="#e879f9" opacity=".95"/>
+            <path d="M54 70L60 62L65 64L70 54" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity=".3"/>
+            <path d="M54 70L60 62L65 64L70 54" fill="none" stroke="#fff" stroke-width=".9" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="70" cy="54" r="1.4" fill="#fff"/>
+          </g>
+          <polygon class="holo-scan-lineas" points="195,168.8 331.4,249.4 331.4,410.6 195,491.2 58.6,410.6 58.6,249.4" fill="url(#holo-scan)"/>
+        </g>
+      </svg>
+      <div class="loading-texto">
+        <p class="loading-nombre">Gestion FR</p>
+        <div class="loading-barra"><div class="loading-barra-fill"></div></div>
+        <p class="muted" id="loading-msg">Cargando…</p>
+        <button id="btn-retry-boot" class="btn-primary hidden">Reintentar</button>
+        <button id="btn-reconfigure-boot" class="btn-secondary hidden">Configurar de nuevo</button>
       </div>
-      <p class="muted" id="loading-msg">Cargando…</p>
-      <button id="btn-retry-boot" class="btn-primary hidden" style="margin-top:16px;">Reintentar</button>
-      <button id="btn-reconfigure-boot" class="btn-secondary hidden" style="margin-top:10px;">Configurar de nuevo</button>
     </div>
   </div>
 
