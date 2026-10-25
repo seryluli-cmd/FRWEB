@@ -42,14 +42,16 @@
        El fondo (brillo, haz y base) es un SVG de 390×844 que se escala
        entero; el cubo es 3D de verdad (seis caras con CSS 3D) y gira sobre
        su eje — ver styles.css, "Pantalla de carga: cubo holográfico". -->
-  <div id="screen-loading" class="screen active">
+  <!-- Los 3 colores del holograma (--holo-1/2/3) son la identidad de esta app:
+       cada negocio tiene los suyos, el resto del dibujo es igual en todas. -->
+  <div id="screen-loading" class="screen active" style="--holo-1: #a78bfa; --holo-2: #6d28d9; --holo-3: #f0abfc;">
     <div class="loading-wrap">
       <svg class="holo" viewBox="0 0 390 844" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
         <defs>
-          <radialGradient id="holo-glow" cx="195" cy="330" r="240" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#22d3ee" stop-opacity=".22"/><stop offset=".6" stop-color="#7c3aed" stop-opacity=".1"/><stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></radialGradient>
-          <linearGradient id="holo-haz-g" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#22d3ee" stop-opacity=".26"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></linearGradient>
+          <radialGradient id="holo-glow" cx="195" cy="330" r="240" gradientUnits="userSpaceOnUse"><stop class="holo-p1" offset="0" stop-opacity=".22"/><stop class="holo-p2" offset=".6" stop-opacity=".1"/><stop class="holo-p2" offset="1" stop-opacity="0"/></radialGradient>
+          <linearGradient id="holo-haz-g" x1="0" y1="1" x2="0" y2="0"><stop class="holo-p1" offset="0" stop-opacity=".26"/><stop class="holo-p1" offset="1" stop-opacity="0"/></linearGradient>
           <linearGradient id="holo-piso-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
-          <radialGradient id="holo-base-g" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#22d3ee" stop-opacity=".85"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></radialGradient>
+          <radialGradient id="holo-base-g" cx=".5" cy=".5" r=".5"><stop class="holo-p1" offset="0" stop-opacity=".85"/><stop class="holo-p1" offset="1" stop-opacity="0"/></radialGradient>
           <pattern id="holo-puntos" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r=".8" fill="#fff" fill-opacity=".07"/></pattern>
           <mask id="holo-piso-m" maskUnits="userSpaceOnUse" x="0" y="0" width="390" height="844"><rect x="0" y="540" width="390" height="260" fill="url(#holo-piso-g)"/></mask>
         </defs>
@@ -59,7 +61,7 @@
           <circle cx="46" cy="96" r="1.3" opacity=".7"/><circle cx="332" cy="72" r="1.1" opacity=".6"/><circle cx="358" cy="210" r="1" opacity=".5"/>
           <circle cx="28" cy="300" r="1.2" opacity=".5"/><circle cx="300" cy="150" r=".9" opacity=".5"/><circle cx="90" cy="190" r=".9" opacity=".45"/>
         </g>
-        <g mask="url(#holo-piso-m)" stroke="#22d3ee" stroke-opacity=".16" stroke-width="1">
+        <g class="holo-piso" mask="url(#holo-piso-m)" stroke-opacity=".16" stroke-width="1">
           <path d="M0 566H390M0 596H390M0 634H390M0 682H390M0 742H390"/>
           <path d="M195 540L-180 844M195 540L-50 844M195 540L75 844M195 540V844M195 540L315 844M195 540L440 844M195 540L570 844"/>
         </g>
@@ -67,17 +69,17 @@
         <polygon class="holo-haz" points="90,540 300,540 262,170 128,170" fill="url(#holo-haz-g)"/>
         <g class="holo-base">
           <ellipse cx="195" cy="540" rx="150" ry="30" fill="url(#holo-base-g)"/>
-          <ellipse cx="195" cy="540" rx="132" ry="25" fill="none" stroke="#67e8f9" stroke-width="1.6" opacity=".85"/>
-          <ellipse cx="195" cy="540" rx="96" ry="18" fill="none" stroke="#67e8f9" stroke-width="1.2" opacity=".5"/>
-          <ellipse cx="195" cy="540" rx="60" ry="11" fill="none" stroke="#67e8f9" stroke-width="1" opacity=".3"/>
+          <ellipse class="holo-anillo" cx="195" cy="540" rx="132" ry="25" fill="none" stroke-width="1.6" opacity=".85"/>
+          <ellipse class="holo-anillo" cx="195" cy="540" rx="96" ry="18" fill="none" stroke-width="1.2" opacity=".5"/>
+          <ellipse class="holo-anillo" cx="195" cy="540" rx="60" ry="11" fill="none" stroke-width="1" opacity=".3"/>
         </g>
       </svg>
       <!-- Las caras de adelante/atrás llevan las barras y las de los costados el
            gráfico, así siempre hay algo a la vista mientras gira. -->
       <div class="holo-3d" aria-hidden="true">
         <div class="holo-cubo3d">
-          <div class="holo-cara holo-cara-frente"><svg viewBox="0 0 100 100"><rect x="20" y="54" width="14" height="30" rx="2" fill="#22d3ee"/><rect x="43" y="39" width="14" height="45" rx="2" fill="#a78bfa"/><rect x="66" y="24" width="14" height="60" rx="2" fill="#e879f9"/></svg></div>
-          <div class="holo-cara holo-cara-atras"><svg viewBox="0 0 100 100"><rect x="20" y="54" width="14" height="30" rx="2" fill="#22d3ee"/><rect x="43" y="39" width="14" height="45" rx="2" fill="#a78bfa"/><rect x="66" y="24" width="14" height="60" rx="2" fill="#e879f9"/></svg></div>
+          <div class="holo-cara holo-cara-frente"><svg viewBox="0 0 100 100"><rect class="holo-b1" x="20" y="54" width="14" height="30" rx="2"/><rect class="holo-b2" x="43" y="39" width="14" height="45" rx="2"/><rect class="holo-b3" x="66" y="24" width="14" height="60" rx="2"/></svg></div>
+          <div class="holo-cara holo-cara-atras"><svg viewBox="0 0 100 100"><rect class="holo-b1" x="20" y="54" width="14" height="30" rx="2"/><rect class="holo-b2" x="43" y="39" width="14" height="45" rx="2"/><rect class="holo-b3" x="66" y="24" width="14" height="60" rx="2"/></svg></div>
           <div class="holo-cara holo-cara-der"><svg viewBox="0 0 100 100"><path d="M14 76L34 56L50 62L68 36L86 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="86" cy="24" r="5" fill="#fff"/></svg></div>
           <div class="holo-cara holo-cara-izq"><svg viewBox="0 0 100 100"><path d="M14 76L34 56L50 62L68 36L86 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="86" cy="24" r="5" fill="#fff"/></svg></div>
           <div class="holo-cara holo-cara-arriba"></div>

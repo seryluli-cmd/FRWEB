@@ -136,6 +136,11 @@ body {
    ("meet"): en pantallas más anchas quedan bandas del mismo color de fondo,
    invisibles. */
 #screen-loading {
+  /* paleta del holograma; cada app pisa estas 3 variables desde su index.html
+     (--holo-1 luz principal, --holo-2 caras del cubo, --holo-3 acento) */
+  --holo-1: #22d3ee;
+  --holo-2: #a855f7;
+  --holo-3: #e879f9;
   background: #020814;
   color: #fff;
   /* el body deja la franja del notch como padding; acá la tapamos también */
@@ -154,6 +159,12 @@ body {
   .loading-wrap { --holo-u: min(calc(100vw / 390), calc((100dvh - var(--safe-top)) / 844)); }
 }
 .holo { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.holo-p1 { stop-color: var(--holo-1); }
+.holo-p2 { stop-color: var(--holo-2); }
+.holo-piso, .holo-anillo { stroke: var(--holo-1); }
+.holo-b1 { fill: var(--holo-1); }
+.holo-b2 { fill: var(--holo-2); }
+.holo-b3 { fill: var(--holo-3); }
 .loading-texto {
   position: absolute; left: 0; right: 0; top: 70%;
   padding: 0 24px;
@@ -162,10 +173,10 @@ body {
 }
 .loading-nombre { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; }
 .loading-barra { width: 150px; height: 4px; margin-top: 26px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; }
-.loading-barra-fill { width: 45%; height: 100%; border-radius: 999px; background: #22d3ee; box-shadow: 0 0 10px #22d3ee; animation: holo-barra 1.8s ease-in-out infinite; }
-#screen-loading #loading-msg { margin: 14px 0 0; font-size: 13px; color: #8fb3c7; }
+.loading-barra-fill { width: 45%; height: 100%; border-radius: 999px; background: var(--holo-1); box-shadow: 0 0 10px var(--holo-1); animation: holo-barra 1.8s ease-in-out infinite; }
+#screen-loading #loading-msg { margin: 14px 0 0; font-size: 13px; color: #a3adc2; }
 #screen-loading .btn-primary, #screen-loading .btn-secondary { max-width: 280px; margin-top: 12px; }
-#screen-loading .btn-primary { background: #22d3ee; color: #041018; }
+#screen-loading .btn-primary { background: var(--holo-1); color: #041018; }
 #screen-loading .btn-secondary { background: rgba(255,255,255,.1); color: #fff; }
 
 /* El cubo: seis caras translúcidas con CSS 3D que giran sobre su eje
@@ -191,20 +202,22 @@ body {
 }
 .holo-cara {
   position: absolute; inset: 0;
-  border: calc(var(--holo-u) * 2.5) solid rgba(240,253,255,.95);
-  background-color: rgba(34,211,238,.14);
+  border: calc(var(--holo-u) * 2.5) solid color-mix(in srgb, var(--holo-1) 30%, #fff);
+  background-color: color-mix(in srgb, var(--holo-1) 14%, transparent);
   /* líneas de barrido de holograma; suben solas (holo-barrido) */
   background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.08) 0 1px, transparent 1px 4px);
-  box-shadow: 0 0 calc(var(--holo-u) * 10) rgba(34,211,238,.7), 0 0 calc(var(--holo-u) * 28) rgba(232,121,249,.35), inset 0 0 calc(var(--holo-u) * 12) rgba(34,211,238,.3);
+  box-shadow: 0 0 calc(var(--holo-u) * 10) color-mix(in srgb, var(--holo-1) 70%, transparent),
+              0 0 calc(var(--holo-u) * 28) color-mix(in srgb, var(--holo-3) 35%, transparent),
+              inset 0 0 calc(var(--holo-u) * 12) color-mix(in srgb, var(--holo-1) 30%, transparent);
   animation: holo-barrido .6s linear infinite;
 }
 .holo-cara svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.holo-cara-frente { transform: translateZ(calc(var(--holo-lado) / 2)); background-color: rgba(168,85,247,.2); }
-.holo-cara-atras  { transform: rotateY(180deg) translateZ(calc(var(--holo-lado) / 2)); background-color: rgba(168,85,247,.2); }
+.holo-cara-frente { transform: translateZ(calc(var(--holo-lado) / 2)); background-color: color-mix(in srgb, var(--holo-2) 24%, transparent); }
+.holo-cara-atras  { transform: rotateY(180deg) translateZ(calc(var(--holo-lado) / 2)); background-color: color-mix(in srgb, var(--holo-2) 24%, transparent); }
 .holo-cara-der    { transform: rotateY(90deg) translateZ(calc(var(--holo-lado) / 2)); }
 .holo-cara-izq    { transform: rotateY(-90deg) translateZ(calc(var(--holo-lado) / 2)); }
-.holo-cara-arriba { transform: rotateX(90deg) translateZ(calc(var(--holo-lado) / 2)); background-color: rgba(103,232,249,.22); }
-.holo-cara-abajo  { transform: rotateX(-90deg) translateZ(calc(var(--holo-lado) / 2)); background-color: rgba(103,232,249,.06); }
+.holo-cara-arriba { transform: rotateX(90deg) translateZ(calc(var(--holo-lado) / 2)); background-color: color-mix(in srgb, var(--holo-1) 22%, transparent); }
+.holo-cara-abajo  { transform: rotateX(-90deg) translateZ(calc(var(--holo-lado) / 2)); background-color: color-mix(in srgb, var(--holo-1) 6%, transparent); }
 .holo-base, .holo-haz { transform-origin: 195px 540px; animation: holo-late 4.2s ease-in-out infinite; }
 
 @keyframes holo-gira { from { transform: rotateX(-35deg) rotateY(45deg); } to { transform: rotateX(-35deg) rotateY(405deg); } }
