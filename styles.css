@@ -197,6 +197,13 @@ body {
   perspective: calc(var(--holo-u) * 1400);
   animation: holo-flota 4.2s ease-in-out infinite;
 }
+/* Solo en la pantalla de carga el cubo va a mitad de tamaño (más
+   delicado) — achica únicamente --holo-lado, no --holo-u, para no tocar
+   el resto del dibujo (haz, anillo, piso). El centro queda igual sin
+   tocar nada más: margin-top/-left de arriba se recalculan solos a
+   partir de --holo-lado. El cubo de "¿Quién sos?" (.quien-holo) no se
+   toca, tiene su propio --holo-u y queda como estaba. */
+.loading-wrap .holo-3d { --holo-lado: calc(var(--holo-u) * 97.5); }
 .holo-cubo3d {
   position: absolute; inset: 0;
   transform-style: preserve-3d;
