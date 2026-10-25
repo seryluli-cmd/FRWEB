@@ -197,22 +197,24 @@ body {
   perspective: calc(var(--holo-u) * 1400);
   animation: holo-flota 4.2s ease-in-out infinite;
 }
-/* Solo en la pantalla de carga el cubo va a mitad de tamaño (más
-   delicado) — achica únicamente --holo-lado, no --holo-u, para no tocar
-   el resto del dibujo (haz, anillo, piso). El centro queda igual sin
-   tocar nada más: margin-top/-left de arriba se recalculan solos a
+/* Solo en la pantalla de carga el cubo es más chico (más delicado):
+   -50% (97.5), después -15% más (97.5*0.85=82.875) → 42.5% del tamaño
+   original de 195. Achica únicamente --holo-lado, no --holo-u, para no
+   tocar el resto del dibujo (haz, anillo, piso). El centro queda igual
+   sin tocar nada más: margin-top/-left de arriba se recalculan solos a
    partir de --holo-lado. El cubo de "¿Quién sos?" (.quien-holo) no se
    toca, tiene su propio --holo-u y queda como estaba. */
-.loading-wrap .holo-3d { --holo-lado: calc(var(--holo-u) * 97.5); }
+.loading-wrap .holo-3d { --holo-lado: calc(var(--holo-u) * 82.875); }
 .holo-cubo3d {
   position: absolute; inset: 0;
   transform-style: preserve-3d;
   transform: rotateX(-35deg) rotateY(45deg);
   animation: holo-gira 14s linear infinite;
 }
-/* Solo en la pantalla de carga, 50% más rápido (14s / 1.5). El de
-   "¿Quién sos?" sigue a 14s. */
-.loading-wrap .holo-cubo3d { animation-duration: 9.33s; }
+/* Solo en la pantalla de carga: +50% (9.33s), después +25% más
+   (9.33/1.25=7.46s) → gira 1.875x más rápido que el original (14s). El
+   de "¿Quién sos?" sigue a 14s. */
+.loading-wrap .holo-cubo3d { animation-duration: 7.46s; }
 .holo-cara {
   position: absolute; inset: 0;
   border: calc(var(--holo-u) * 2.5) solid color-mix(in srgb, var(--holo-1) 30%, #fff);
