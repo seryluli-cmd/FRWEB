@@ -210,6 +210,9 @@ body {
   transform: rotateX(-35deg) rotateY(45deg);
   animation: holo-gira 14s linear infinite;
 }
+/* Solo en la pantalla de carga, 50% más rápido (14s / 1.5). El de
+   "¿Quién sos?" sigue a 14s. */
+.loading-wrap .holo-cubo3d { animation-duration: 9.33s; }
 .holo-cara {
   position: absolute; inset: 0;
   border: calc(var(--holo-u) * 2.5) solid color-mix(in srgb, var(--holo-1) 30%, #fff);
