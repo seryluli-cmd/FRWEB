@@ -702,6 +702,7 @@
       <div class="cmp-seg" id="cmp-vista" role="group" aria-label="Tipo de comparación">
         <button type="button" data-vista="mes" aria-pressed="true">Por mes</button>
         <button type="button" data-vista="tramo" aria-pressed="false">Por tramo</button>
+        <button type="button" data-vista="turno" aria-pressed="false">Por turno</button>
         <button type="button" data-vista="equipo" aria-pressed="false">Por empleado</button>
       </div>
 
@@ -712,7 +713,7 @@
         <p id="comparar-empty" class="muted small hidden">Todavía no hay cierres ni gastos cargados.</p>
       </div>
 
-      <!-- Mes elegido: lo comparten "Por tramo" y "Equipo" -->
+      <!-- Mes elegido: lo comparten "Por tramo", "Por turno" y "Equipo" -->
       <div class="month-nav hidden" id="cmp-nav">
         <button id="cmp-mes-anterior" class="month-nav-btn" aria-label="Mes anterior">‹</button>
         <div class="month-nav-label" id="cmp-mes-label">Mes</div>
@@ -726,6 +727,11 @@
           <button type="button" data-modo="dia" aria-pressed="false">Promedio por día</button>
         </div>
         <div id="cmp-tramo-contenido"></div>
+      </div>
+
+      <!-- Vista "Por turno": el total de Mañana, Tarde y Noche contra el mes anterior -->
+      <div id="cmp-vista-turno" class="hidden">
+        <div id="cmp-turno-contenido"></div>
       </div>
 
       <!-- Vista "Equipo": cuánto subió o bajó cada integrante contra el mes anterior -->

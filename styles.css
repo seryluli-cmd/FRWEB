@@ -812,6 +812,9 @@ input:focus, select:focus, textarea:focus {
   font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
 }
 .cmp-seg button[aria-pressed="true"] { background: var(--surface-1); color: var(--text-primary); box-shadow: 0 0 0 1px var(--border); }
+/* Cuatro vistas: cada botón toma el ancho de su texto, así "Por empleado" no se parte en dos líneas. */
+#cmp-vista button { flex: 1 1 auto; padding: 0 6px; font-size: 13px; white-space: nowrap; }
+@media (max-width: 340px) { #cmp-vista button { padding: 0 3px; font-size: 12px; } }
 .cmp-seg-sm { margin: 4px 0 16px; }
 .cmp-seg-sm button { min-height: 34px; font-size: 13px; }
 
@@ -924,6 +927,19 @@ input:focus, select:focus, textarea:focus {
 .cmp-eq-pocos { grid-column: 2 / 4; font-size: 12px; color: var(--text-muted); text-align: right; }
 .cmp-vs-persona { grid-template-columns: 74px 1fr auto; }
 .cmp-vs-persona .cmp-vs-tramo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* "Por turno": el total de cada turno contra el mes anterior. Las barras son las
+   mismas de "Por tramo" (mes elegido en tinta, mes anterior apagado). */
+.cmp-tu-fila { padding: 12px 0; border-top: 1px solid var(--border); }
+.cmp-tu-cab { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.cmp-tu-fila .cmp-vs-barras { margin-top: 8px; }
+.cmp-tu-nom { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
+.cmp-tu-nom small { font-size: 11.5px; color: var(--text-muted); }
+.cmp-tu-val { display: flex; flex-direction: column; align-items: flex-end; }
+.cmp-tu-val b { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cmp-tu-val .cmp-delta { min-width: 0; font-size: 12.5px; }
+.cmp-tu-suma { border-top-color: var(--baseline); }
+.cmp-tu-suma .cmp-tu-cab { grid-template-columns: minmax(0, 1fr) auto; }
 
 /* "Por empleado": podio de quienes más subieron. Oro, plata y bronce son colores
    de medalla (el puesto); sube o baja sigue yendo con flecha y verde o rojo. */
