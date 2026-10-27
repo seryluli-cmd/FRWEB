@@ -1,7 +1,8 @@
 // ============================================================
 // Estadísticas (solo admin) — tres vistas calculadas sobre los gastos y
 // cierres ya guardados, no tocan ni mueven ningún dato:
-// Se eligen con cuatro teclas (X MES, X TURNO, X TRAMO, X EMPLEADO):
+// Se eligen con cuatro fichas (X MES, X TURNO, X TRAMO, X EMPLEADO) que
+// adelantan el dato clave de cada vista para el mes elegido:
 //   · "Por mes":   un bloque por mes con Efectivo, Digital, suma y Gastos.
 //   · "Por turno": lo facturado en Mañana, Tarde y Noche del mes elegido contra
 //     el mes anterior (en el mes en curso, hasta el mismo día en los dos).
@@ -529,8 +530,10 @@ const ICONOS_TURNO = {
   noche: { color: "#4f56c9", trazo: `<path d="M20 14.2A8.5 8.5 0 0 1 9.8 4a8.5 8.5 0 1 0 10.2 10.2z"/>` },
 };
 
+const iconoTurno = (id) => ICONOS_TURNO[id.normalize("NFD").replace(/[\u0300-\u036f]/g, "")];
+
 function turnoAvatarHtml(id, clase = "") {
-  const icono = ICONOS_TURNO[id.normalize("NFD").replace(/[\u0300-\u036f]/g, "")];
+  const icono = iconoTurno(id);
   if (!icono) return `<span class="cmp-av ${clase}" style="background:var(--text-secondary)" aria-hidden="true">${escapeHtml(id.charAt(0).toUpperCase())}</span>`;
   return `<span class="cmp-av ${clase}" style="background:${icono.color}" aria-hidden="true"><svg viewBox="0 0 24 24">${icono.trazo}</svg></span>`;
 }
@@ -818,6 +821,57 @@ function turnoTablaHtml(d) {
     </details>`;
 }
 
+// ---------- Fichas del selector ----------
+
+// Cada ficha adelanta el dato clave de su vista para el mes elegido, sin tener
+// que entrar: el total facturado y cuánto cambió contra el mes anterior, las
+// barras de los tres turnos, las columnas de los tres tramos y el podio de
+// empleados. Son las mismas cuentas de cada vista, así los números coinciden.
+// Sin datos en el mes la miniatura queda apagada, en vez de dibujar nada.
+
+function fichaMesHtml(act, ant) {
+  const total = act.tramos.reduce((s, t) => s + t.total, 0);
+  const previo = ant.tramos.reduce((s, t) => s + t.total, 0);
+  if (!total) return `<small class="cmp-ficha-nada">Sin cierres</small>`;
+  return `<b>$${compacto(total)}</b>${deltaHtml(total, previo)}`;
+}
+
+function fichaTurnosHtml(turnos) {
+  const filas = turnosDelNegocio().map(t => ({ ...t, total: turnos.turnos.get(t.id).total }));
+  const max = Math.max(...filas.map(f => f.total));
+  const ancho = (v) => max > 0 ? Math.max(6, Math.round((v / max) * 100)) : 20;
+  const barras = filas.map(f => {
+    const icono = iconoTurno(f.id);
+    return `<i style="--w:${ancho(f.total)}%${icono ? `;--c:${icono.color}` : ""}"></i>`;
+  }).join("");
+  return `<span class="cmp-mini cmp-mini-turnos${max > 0 ? "" : " cmp-mini-vacio"}">${barras}</span>`;
+}
+
+function fichaTramosHtml(act) {
+  const max = Math.max(...act.tramos.map(t => t.total));
+  const alto = (v) => max > 0 ? Math.max(8, Math.round((v / max) * 100)) : 60;
+  const columnas = act.tramos.map(t => `<i style="--h:${alto(t.total)}%"></i>`).join("");
+  return `<span class="cmp-mini cmp-mini-tramos${max > 0 ? "" : " cmp-mini-vacio"}">${columnas}</span>`;
+}
+
+// Las iniciales de quienes están en el podio (1.º, 2.º y 3.º, con su medalla).
+// Si todavía no hay podio, los tres escalones apagados.
+function fichaEquipoHtml(act, ant) {
+  const top = podioDe(evolucionEquipo(act, ant)).top;
+  if (!top.length) return `<span class="cmp-mini cmp-mini-podio cmp-mini-vacio"><i></i><i></i><i></i></span>`;
+  return `<span class="cmp-mini cmp-mini-podio">${top.map((f, i) => avatarHtml(f.nombre, `cmp-m${i + 1}`)).join("")}</span>`;
+}
+
+function renderFichas() {
+  const act = datosTramos(ui.offset);
+  const ant = datosTramos(ui.offset - 1);
+  const dato = (k, html) => { $(`#cmp-vista [data-dato="${k}"]`).innerHTML = html; };
+  dato("mes", fichaMesHtml(act, ant));
+  dato("turno", fichaTurnosHtml(datosTurnos(ui.offset)));
+  dato("tramo", fichaTramosHtml(act));
+  dato("equipo", fichaEquipoHtml(datosEquipo(ui.offset), datosEquipo(ui.offset - 1)));
+}
+
 // ---------- Render ----------
 
 function actualizarNavMes(base) {
@@ -920,6 +974,7 @@ export function renderComparar() {
   if (!pantalla || !state.esAdmin || !pantalla.classList.contains("active")) return;
 
   $$("#cmp-vista button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.vista === ui.vista)));
+  renderFichas();
   $("#cmp-vista-mes").classList.toggle("hidden", ui.vista !== "mes");
   $("#cmp-nav").classList.toggle("hidden", ui.vista === "mes");
   $("#cmp-vista-tramo").classList.toggle("hidden", ui.vista !== "tramo");
