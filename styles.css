@@ -812,10 +812,29 @@ input:focus, select:focus, textarea:focus {
   font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
 }
 .cmp-seg button[aria-pressed="true"] { background: var(--surface-1); color: var(--text-primary); box-shadow: 0 0 0 1px var(--border); }
-/* Cuatro vistas: cada botón toma el ancho de su texto, así "Por empleado" no se parte en dos líneas. */
-#cmp-vista button { flex: 1 1 auto; padding: 0 6px; font-size: 13px; white-space: nowrap; }
-@media (max-width: 340px) { #cmp-vista button { padding: 0 3px; font-size: 12px; } }
 .cmp-seg-sm { margin: 4px 0 16px; }
+
+/* Las cuatro vistas de Estadísticas son teclas, las mismas de la pantalla
+   principal: la elegida queda hundida (sin pared) y con el color de marca,
+   como la tecla "viva"; las otras tres, levantadas y neutras. */
+.cmp-teclas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; margin: 2px 0 20px; }
+.tecla-vista { align-items: center; gap: 10px; min-height: 54px; padding: 10px 12px; border-radius: 12px; }
+.tecla-vista .tecla-icono { width: 22px; height: 22px; }
+.tecla-vista .tecla-nombre { font-size: 15px; font-weight: 800; letter-spacing: 0.04em; white-space: nowrap; }
+.tecla-vista .tecla-nombre i { font-style: normal; font-weight: 600; opacity: 0.6; }
+.tecla-vista[aria-pressed="true"] {
+  --cara: var(--biz-color, var(--series-1));
+  --pared: color-mix(in srgb, var(--biz-color, var(--series-1)) 55%, #000);
+  --tinta: var(--tecla-viva-tinta);
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--pared);
+}
+.tecla-vista[aria-pressed="true"] .tecla-nombre i { opacity: 0.75; }
+@media (max-width: 340px) {
+  .cmp-teclas { gap: 10px 8px; }
+  .tecla-vista { gap: 7px; padding: 10px 9px; }
+  .tecla-vista .tecla-nombre { font-size: 13.5px; }
+}
 .cmp-seg-sm button { min-height: 34px; font-size: 13px; }
 
 .cmp-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 16px; padding: 16px 14px 14px; margin-bottom: 14px; }

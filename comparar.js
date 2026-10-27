@@ -1,11 +1,12 @@
 // ============================================================
 // Estadísticas (solo admin) — tres vistas calculadas sobre los gastos y
 // cierres ya guardados, no tocan ni mueven ningún dato:
+// Se eligen con cuatro teclas (X MES, X TURNO, X TRAMO, X EMPLEADO):
 //   · "Por mes":   un bloque por mes con Efectivo, Digital, suma y Gastos.
-//   · "Por tramo": un mes partido en días 1–10, 11–20 y 21–fin, para ver en
-//     qué parte del mes entra (y sale) la plata.
 //   · "Por turno": lo facturado en Mañana, Tarde y Noche del mes elegido contra
 //     el mes anterior (en el mes en curso, hasta el mismo día en los dos).
+//   · "Por tramo": un mes partido en días 1–10, 11–20 y 21–fin, para ver en
+//     qué parte del mes entra (y sale) la plata.
 //   · "Por empleado": cuánto subió o bajó el promedio por turno de cada
 //     integrante contra el mes anterior, según los cierres de turno. Debajo,
 //     el podio de turnos: cuál de los turnos subió más su promedio.

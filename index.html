@@ -699,11 +699,24 @@
     </header>
 
     <section class="tab active">
-      <div class="cmp-seg" id="cmp-vista" role="group" aria-label="Tipo de comparación">
-        <button type="button" data-vista="mes" aria-pressed="true">Por mes</button>
-        <button type="button" data-vista="tramo" aria-pressed="false">Por tramo</button>
-        <button type="button" data-vista="turno" aria-pressed="false">Por turno</button>
-        <button type="button" data-vista="equipo" aria-pressed="false">Por empleado</button>
+      <!-- Las cuatro vistas son teclas como las de la pantalla principal; la elegida queda hundida y con el color de marca -->
+      <div class="cmp-teclas" id="cmp-vista" role="group" aria-label="Tipo de comparación">
+        <button type="button" class="tecla tecla-vista" data-vista="mes" aria-pressed="true">
+          <span class="tecla-icono"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+          <span class="tecla-nombre"><i>X</i> MES</span>
+        </button>
+        <button type="button" class="tecla tecla-vista" data-vista="turno" aria-pressed="false">
+          <span class="tecla-icono"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg></span>
+          <span class="tecla-nombre"><i>X</i> TURNO</span>
+        </button>
+        <button type="button" class="tecla tecla-vista" data-vista="tramo" aria-pressed="false">
+          <span class="tecla-icono"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="4.5" height="9" rx="1"/><rect x="9.75" y="4" width="4.5" height="16" rx="1"/><rect x="16.5" y="13" width="4.5" height="7" rx="1"/></svg></span>
+          <span class="tecla-nombre"><i>X</i> TRAMO</span>
+        </button>
+        <button type="button" class="tecla tecla-vista" data-vista="equipo" aria-pressed="false">
+          <span class="tecla-icono"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.5a5 5 0 0 1 5.5 5"/></svg></span>
+          <span class="tecla-nombre"><i>X</i> EMPLEADO</span>
+        </button>
       </div>
 
       <!-- Vista "Por mes": un bloque por mes con Efectivo, Digital, suma y Gastos -->
