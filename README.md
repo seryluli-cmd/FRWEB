@@ -278,6 +278,14 @@ su propio acceso directo en `screen-seccion`** (ver `SECCIONES` en
 `renderSeccionCards()`, navegacion.js) — si se sacan de ahí sin dejar otro
 camino, quedan con código andando pero inalcanzables desde la UI.
 
+## Link de la app (para empleados nuevos)
+
+Ajustes → "Link de la app", solo para admins: un mensaje listo para mandar
+por WhatsApp con el link y cómo instalarla. El link sale de `location` (la
+dirección donde está abierta la app), así nunca queda viejo; en pantalla se
+ve sin `https://` y en lo copiado va completo para que sea tocable. El texto
+está en `MENSAJE_LINK_APP` (ajustes.js).
+
 ## Exportar datos (CSV)
 
 Ajustes → "Exportar datos" baja gastos y facturación como `.csv` (se abre

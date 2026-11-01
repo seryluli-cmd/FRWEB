@@ -36,7 +36,7 @@ import { renderResumen, renderBalance, listenCajaInicio, abrirModalCajaInicio, c
 import {
   cargarHistorialLogins, renderAjustesSocios, agregarCategoriaDesdeAjustes, quitarCategoria,
   agregarColaboradorDesdeAjustes, quitarColaborador, toggleAdminColaborador, guardarClaveMaestra,
-  seleccionarTema, renderAjustesTema, resetLocalConfig
+  seleccionarTema, renderAjustesTema, resetLocalConfig, copiarLinkApp
 } from "./ajustes.js";
 import { connectAndBoot } from "./firebase.js";
 import { renderNegocioCards, switchTab, volverASeccion } from "./navegacion.js";
@@ -187,6 +187,7 @@ function wireEvents() {
     if (removeBtn) quitarCategoria(removeBtn.dataset.nombre);
   });
   $("#btn-guardar-clave-maestra").addEventListener("click", guardarClaveMaestra);
+  $("#btn-copiar-link-app").addEventListener("click", copiarLinkApp);
   $("#btn-pin-cancel").addEventListener("click", closePinModal);
   $("#btn-pin-confirm").addEventListener("click", confirmPinModal);
   $("#modal-pin").addEventListener("click", (e) => {
