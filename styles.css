@@ -1105,19 +1105,25 @@ input:focus, select:focus, textarea:focus {
 /* "Link de la app" (Ajustes, solo admins). Los verdes salen de --good
    mezclado: el link hacia el color del texto (más oscuro en Claro, más
    claro en Oscuro) y el botón hacia negro, para que se lean bien. */
-.link-app-mensaje {
-  background: var(--page-plane);
-  border: 1px solid var(--border);
+.link-app-fila { display: flex; gap: 8px; }
+.link-app-url {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  background: color-mix(in srgb, var(--good) 14%, var(--surface-1));
   border-radius: 12px;
   padding: 12px 14px;
-  margin: 12px 0;
-  font-size: 14.5px;
-  line-height: 1.5;
+  color: color-mix(in srgb, var(--good) 80%, var(--text-primary));
+  font-size: 15px;
+  font-weight: 700;
+  word-break: break-all;
 }
-.link-app-url { color: color-mix(in srgb, var(--good) 80%, var(--text-primary)); font-weight: 700; word-break: break-all; }
+.link-app-nota { margin: 10px 0 0; }
 .btn-link-app {
-  width: 100%;
-  padding: 14px;
+  flex: none;
+  min-width: 7.5em;
+  padding: 12px 14px;
   border-radius: 12px;
   border: none;
   background: color-mix(in srgb, var(--good) 80%, #000);

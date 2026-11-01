@@ -110,26 +110,21 @@ export function renderAjustesSocios() {
   $('.tabbtn[data-tab="balance"]').classList.toggle("hidden", state.socios.length <= 1);
 }
 
-// "Link de la app" en Ajustes — solo admins: un mensaje listo para mandarle
-// al empleado nuevo. El link sale de la dirección donde está abierta la app
+// "Link de la app" en Ajustes — solo admins: el link para pasarle al
+// empleado nuevo. Sale de la dirección donde está abierta la app
 // (location), así no queda viejo si cambia el dominio. En pantalla va sin
-// "https://" para que se lea limpio; en lo copiado va completo para que
+// "https://" para que se lea limpio; lo copiado va completo para que
 // WhatsApp lo muestre como link que se toca.
-const MENSAJE_LINK_APP = [
-  "Hola, esta es la app de gastos del negocio: {link}",
-  "Abrila, elegí tu nombre y agregala a la pantalla de inicio, así te queda práctico y no perdés la dirección. Queda como una app instalada."
-];
-const TEXTO_BTN_COPIAR_LINK = "📋 Copiar mensaje";
+const TEXTO_BTN_COPIAR_LINK = "📋 Copiar";
 
 function renderLinkApp() {
   $("#ajustes-link-app-card").classList.toggle("hidden", !state.esAdmin);
   if (!state.esAdmin) return;
-  const link = `<span class="link-app-url">${escapeHtml(location.host)}</span>`;
-  $("#link-app-mensaje").innerHTML = MENSAJE_LINK_APP.map(l => escapeHtml(l).replace("{link}", link)).join("<br>");
+  $("#link-app-url").textContent = location.host;
 }
 
 export async function copiarLinkApp() {
-  const texto = MENSAJE_LINK_APP.join("\n").replace("{link}", location.origin);
+  const texto = location.origin;
   try {
     await navigator.clipboard.writeText(texto);
   } catch (e) {
@@ -144,7 +139,7 @@ export async function copiarLinkApp() {
     ta.select();
     const ok = document.execCommand("copy");
     ta.remove();
-    if (!ok) { showToast("No se pudo copiar. Mantené apretado el mensaje para copiarlo a mano."); return; }
+    if (!ok) { showToast("No se pudo copiar. Mantené apretado el link para copiarlo a mano."); return; }
   }
   const btn = $("#btn-copiar-link-app");
   btn.textContent = "✅ Copiado";
