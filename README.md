@@ -281,8 +281,8 @@ camino, quedan con código andando pero inalcanzables desde la UI.
 ## Link de la app (para empleados nuevos)
 
 Ajustes → "Link de la app", solo para admins: el link en verde con un botón
-"Copiar" al lado, para mandárselo al empleado nuevo, y abajo "Instalala en
-Inicio como APP.". El link sale de `location` (la dirección donde está
+"Copiar" al lado, para mandárselo al empleado nuevo, y abajo cómo
+instalarla en el Inicio. El link sale de `location` (la dirección donde está
 abierta la app), así nunca queda viejo; en pantalla se ve sin `https://` y
 lo copiado va completo para que sea tocable (`copiarLinkApp()`, ajustes.js).
 
