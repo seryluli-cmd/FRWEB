@@ -1021,6 +1021,42 @@
     </div>
   </div>
 
+  <!-- ===== MODAL: DETALLE DE UN CIERRE (tal cual la pantalla Cierre de Turno de FRKiosko) ===== -->
+  <div id="modal-detalle-cierre" class="modal-overlay">
+    <div class="modal-sheet detalle-cierre-sheet">
+      <div class="modal-handle"></div>
+
+      <div class="cierre-cabecera">
+        <div class="cierre-cabecera-icono">🧾</div>
+        <div class="cierre-cabecera-textos">
+          <div class="cierre-cabecera-titulo">Cierre de Turno</div>
+          <div class="cierre-cabecera-detalle" id="detalle-cierre-sub">—</div>
+        </div>
+        <span class="cierre-pastilla" id="detalle-cierre-pastilla">—</span>
+      </div>
+
+      <div class="cierre-cifras">
+        <div class="cierre-cifra verde">
+          <div class="cierre-cifra-titulo">A RETIRAR EN EFECTIVO</div>
+          <div class="cierre-cifra-valor" id="detalle-cierre-retirar">$0</div>
+          <div class="cierre-cifra-nota">Va al sobre · el cambio queda en el cajón</div>
+        </div>
+        <div class="cierre-cifra azul">
+          <div class="cierre-cifra-titulo">TOTAL (EFECTIVO + DIGITAL)</div>
+          <div class="cierre-cifra-valor" id="detalle-cierre-total">$0</div>
+          <div class="cierre-cifra-nota">Todo lo cobrado en el turno</div>
+        </div>
+      </div>
+
+      <div class="cierre-tabla" id="detalle-cierre-tabla"></div>
+      <div class="cierre-nota" id="detalle-cierre-nota"></div>
+
+      <div class="modal-actions">
+        <button type="button" id="btn-cerrar-detalle-cierre" class="btn-secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== MODAL: NUEVA IDEA ===== -->
   <div id="modal-add-idea" class="modal-overlay">
     <div class="modal-sheet">

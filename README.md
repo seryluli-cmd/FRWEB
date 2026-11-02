@@ -37,7 +37,7 @@ los event listeners de la UI, pero ya no tiene la lógica de cada pantalla.
 | [navegacion.js](navegacion.js) | Tarjetas de negocio/sección y cambio de pestañas dentro de `screen-app`. |
 | [setup.js](setup.js) | Pantalla de configuración inicial (pegar `firebaseConfig` a mano). |
 | [gastos.js](gastos.js) | Pantalla Gastos y Gastos S/Admin: listado, modal, fotos, chips de pagador, CSV. |
-| [facturado.js](facturado.js) | Pantalla Facturado / Cierre de Turno, incluida la detección de cajas faltantes. |
+| [facturado.js](facturado.js) | Pantalla Facturado / Cierre de Turno, incluida la detección de cajas faltantes y el detalle de un cierre al tocarlo (`openDetalleCierre`: tal cual la pantalla Cierre de Turno de FRKiosko, con el desglose que manda ese programa). |
 | [resumen.js](resumen.js) | Resumen mensual y Balance entre socios. |
 | [comparar.js](comparar.js) | Estadísticas (solo admin), cuatro vistas elegidas con fichas de vidrio sobre un halo de color (X MES, X TURNO, X TRAMO y X EMPLEADO); cada ficha adelanta el dato clave de su vista para el mes elegido (total facturado y variación, barras de los turnos, columnas de los tramos, podio de empleados) y la elegida se enciende con el color de marca: "Por mes" (Efectivo, Digital, suma y Gastos de cada mes), "Por tramo" (días 1–10, 11–20 y 21–fin: gráfico de columnas, total o promedio por día, comparación con el mes anterior y tabla), "Por turno" (lo facturado en mañana, tarde y noche del mes elegido, con cantidad de cierres, parte del total y variación contra el mes anterior; en el mes en curso los dos meses se cortan en el día de hoy) y "Por empleado" (cuánto subió o bajó el promedio por turno de cada colaborador contra el mes anterior, con índice contra el promedio del equipo en los mismos turnos; hace falta un mínimo de 4 turnos en ambos meses; debajo del podio de empleados va el podio de turnos: cuál de mañana, tarde y noche subió más su promedio, calculado sobre los cierres de todo el negocio). Gráficos en SVG/HTML a mano, sin librerías. |
 | [checklist.js](checklist.js) | Fábrica compartida por Ideas y Reportes de Mantenimiento (`crearModuloChecklist`). |
@@ -92,6 +92,27 @@ transacción diaria), no crecen de la misma forma.
   patrón que el desglose Mixto de Gastos — ver `calcularCampoFaltanteFacturado()`
   en facturado.js). `fotoUrl`/`fotoPath` es opcional, una sola foto por
   cierre (a diferencia de `gastos.fotos`, que admite varias).
+  **Los cierres también los manda solo FRKiosko** (el programa Python del
+  mostrador del kiosko, repo `FRPROGRAMAESCRITORIO`,
+  `repositories/envio_pwa_repo.py`; viene apagado y lo prende el Admin desde
+  ese programa): entra a este Firestore con el mismo login anónimo que un
+  celular y escribe un documento por Cierre de Turno (id
+  `frkiosko-<nº>-<fecha>`) con los mismos campos de arriba más
+  `origen: "frkiosko"`, `cierreId`, `caja` (el número de caja), `forzoso`,
+  `enAusencia`, `cerradoPor`, `abiertaPor`/`abiertaEn` (quién abrió la caja y
+  a qué hora; desde el 2026-11-02) y `detalle`: el resumen tal cual la
+  pantalla Cierre de Turno de ese programa — `{ cambioFijo, aRetirar,
+  negocios: [{ clave, nombre, efectivo, digital }], desde, hasta }`, con
+  Kiosko (`kiosko_solo`) e Impresiones (`impresiones`). `registradoPor` es el
+  NOMBRE de la responsable de la caja, escrito igual que acá (por eso los
+  usuarios tienen que llamarse igual en las dos apps; el PIN no participa).
+  La lista marca esos cierres con 🖥️ y, al tocar cualquier cierre, se abre su
+  detalle (`openDetalleCierre`, pedido del dueño 2026-11-02, igual que en la
+  app de CyberBIOS): con `detalle`, A RETIRAR, TOTAL, la tabla por negocio con
+  efectivo y digital, Cobrado y Cambio Fijo, y abajo quién la abrió y cómo se
+  cerró (en rojo si fue forzoso o en ausencia); uno cargado a mano muestra
+  solo efectivo, digital y total. Editar o borrar acá un cierre de FRKiosko no
+  avisa a ese programa (desde su Control de Cierres se puede volver a mandar).
   `turno` es `"mañana"` | `"tarde"` | `"noche"` (constante `TURNOS` en utils.js) —
   todos los días de la semana, domingo incluido, son 3 turnos por día, cada
   uno carga su propia caja como un cierre separado. `turnoActual()` propone

@@ -57,13 +57,21 @@ function renderCierreItem(f) {
 
   const li = document.createElement("li");
   li.className = "expense-item";
+  // Tocar la tarjeta abre el detalle del cierre (ver openDetalleCierre); los
+  // botones de adentro siguen haciendo lo suyo (app.js los mira primero).
+  li.dataset.cierreId = f.id;
+  // Los que manda FRKiosko (el programa del mostrador) llevan una marquita:
+  // esos traen el desglose completo en el detalle.
+  const marcaAuto = f.origen === "frkiosko"
+    ? ` <span class="cierre-auto" title="Mandado por FRKiosko">🖥️</span>`
+    : "";
   // El texto (turno, quién y a qué hora) va en su propia fila arriba, con
   // todo el ancho de la tarjeta para él solo — si compartiera fila con el
   // avatar, el monto y los íconos (como antes) no entra ni la versión más
   // corta en un celular real. Avatar/monto/íconos quedan abajo, mismo
   // patrón que .expense-item-actions en Gastos.
   li.innerHTML = `
-    <div class="desc">${turnoLabel ? escapeHtml(turnoLabel) + ", " : ""}${escapeHtml(f.registradoPor || "?")}${horaCarga ? " " + horaCarga + " hs" : ""} · ${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}</div>
+    <div class="desc">${turnoLabel ? escapeHtml(turnoLabel) + ", " : ""}${escapeHtml(f.registradoPor || "?")}${horaCarga ? " " + horaCarga + " hs" : ""} · ${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}${marcaAuto}</div>
     <div class="expense-item-top">
       <div class="avatar" style="background:${payerColorVar(f.registradoPor)}">${socioInitial(f.registradoPor)}</div>
       <div class="amount">${money(f.importe)}</div>
@@ -425,6 +433,104 @@ export async function saveCierre() {
     btn.disabled = false;
     btn.textContent = isEdit ? "Guardar cambios" : "Guardar";
   }
+}
+
+// ---------- Detalle de un cierre (tocar un cierre de la lista) ----------
+// Pedido del dueño (2026-11-02, "igual a como hace CyberBIOS"): al tocar un
+// cierre se ve el Cierre de Turno tal cual lo muestra FRKiosko (el programa del
+// mostrador): A RETIRAR y TOTAL en grande, la tabla de dónde vino la plata
+// (Kiosko e Impresiones, con efectivo y digital en columnas), lo cobrado y el
+// Cambio Fijo. Ese desglose viene en el campo `detalle` de los cierres que manda
+// FRKiosko (origen "frkiosko", ver repositories/envio_pwa_repo.py en el repo
+// FRPROGRAMAESCRITORIO); un cierre cargado a mano desde el celular no lo tiene y
+// muestra solo lo que hay (efectivo, digital y total).
+
+// Los dibujitos de cada negocio, los mismos de la tarjeta de FRKiosko
+// (ui/tarjeta_cierre.py); la clave viene en cada renglón del detalle.
+const ICONO_NEGOCIO = { kiosko_solo: "🛒", impresiones: "🖨️" };
+
+function filaDeNegocio(icono, nombre, efectivo, digital) {
+  // En cero se ve apagado, así salta a la vista de dónde vino la plata.
+  const vacia = !Number(efectivo) && !Number(digital);
+  return `<div class="cierre-fila${vacia ? " vacia" : ""}">
+    <span class="cierre-fila-icono">${icono}</span>
+    <span class="cierre-fila-nombre">${escapeHtml(nombre)}</span>
+    <span class="cierre-fila-monto">${money(efectivo)}</span>
+    <span class="cierre-fila-monto">${money(digital)}</span>
+  </div>`;
+}
+
+function horaDe(timestamp) {
+  return timestamp && timestamp.toDate
+    ? timestamp.toDate().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })
+    : null;
+}
+
+export function openDetalleCierre(cierre) {
+  const fecha = fechaDeRegistro(cierre);
+  const detalle = cierre.detalle && typeof cierre.detalle === "object" ? cierre.detalle : null;
+  const hora = horaDe(cierre.creadoEn);
+  const quien = cierre.registradoPor || "?";
+  const efectivo = cierre.efectivo != null ? Number(cierre.efectivo) : null;
+  const digital = cierre.digital != null ? Number(cierre.digital) : null;
+
+  const caja = cierre.caja != null ? `Caja Nº ${escapeHtml(String(cierre.caja))} de ${escapeHtml(quien)} · ` : "";
+  $("#detalle-cierre-sub").innerHTML = `${caja}Turno ${escapeHtml(turnoLabelParaFecha(fecha, cierre.turno) || "?")}`;
+  $("#detalle-cierre-pastilla").textContent =
+    fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  $("#detalle-cierre-retirar").textContent =
+    detalle ? money(detalle.aRetirar) : (efectivo != null ? money(efectivo) : "—");
+  $("#detalle-cierre-total").textContent = money(cierre.importe);
+
+  let filas = `<div class="cierre-encabezado"><span></span><span>DE DÓNDE VIENE</span><span>Efectivo</span><span>Digital</span></div>`;
+  if (detalle && Array.isArray(detalle.negocios)) {
+    detalle.negocios.forEach(negocio => {
+      filas += filaDeNegocio(ICONO_NEGOCIO[negocio.clave] || "•", negocio.nombre || negocio.clave, negocio.efectivo, negocio.digital);
+    });
+  }
+  filas += `<div class="cierre-fila cierre-fila-total">
+    <span></span><span class="cierre-fila-nombre">Cobrado</span>
+    <span class="cierre-fila-monto">${efectivo != null ? money(efectivo) : "—"}</span>
+    <span class="cierre-fila-monto">${digital != null ? money(digital) : "—"}</span>
+  </div>`;
+  if (detalle) {
+    filas += `<div class="cierre-fila cierre-fila-cambio">
+      <span></span><span class="cierre-fila-nombre">Cambio Fijo<small>Queda en el cajón para el próximo turno</small></span>
+      <span class="cierre-fila-monto">${money(detalle.cambioFijo)}</span><span></span>
+    </div>`;
+  }
+  $("#detalle-cierre-tabla").innerHTML = filas;
+
+  // Abajo, cómo se cerró (en rojo si fue forzoso o en ausencia, como en el
+  // programa) o, si se cargó a mano, por qué no tiene el desglose.
+  const nota = $("#detalle-cierre-nota");
+  const aLas = hora ? ` a las ${hora}` : "";
+  let texto, alerta = false;
+  if (!detalle) {
+    texto = `Cargado a mano desde el celular por ${quien}${aLas}. El desglose por negocio lo traen solo los cierres que manda FRKiosko.`;
+  } else if (cierre.forzoso) {
+    texto = `Cierre forzoso: la caja se cerró sola${aLas}, nadie la cerró (pasó el fin del turno).`;
+    alerta = true;
+  } else if (cierre.enAusencia) {
+    texto = `La cerró ${cierre.cerradoPor || "?"} en ausencia de ${quien}${aLas}.`;
+    alerta = true;
+  } else {
+    texto = `La cerró ${cierre.cerradoPor || quien}${aLas} en FRKiosko.`;
+  }
+  // Arriba de eso, quién abrió la caja y a qué hora. Lo manda FRKiosko desde el
+  // 2026-11-02: un cierre de antes, uno sin caja o uno cargado a mano no lo trae
+  // y queda solo la línea del cierre.
+  const horaApertura = horaDe(cierre.abiertaEn);
+  const apertura = cierre.abiertaPor
+    ? `La inició ${cierre.abiertaPor}${horaApertura ? ` a las ${horaApertura}` : ""} en FRKiosko.`
+    : "";
+  nota.innerHTML = [apertura, texto].filter(Boolean).map(escapeHtml).join("<br>");
+  nota.classList.toggle("alerta", alerta);
+  $("#modal-detalle-cierre").classList.add("active");
+}
+
+export function closeModalDetalleCierre() {
+  $("#modal-detalle-cierre").classList.remove("active");
 }
 
 // Solo accesible desde el botón 🗑️ (esAdmin). Borra también la foto en

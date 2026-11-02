@@ -1495,3 +1495,66 @@ input:focus, select:focus, textarea:focus {
   text-align: center;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ===== Modal: detalle de un cierre, tal cual la pantalla Cierre de Turno de
+   FRKiosko (pedido del dueño, 2026-11-02, igual que en la app de CyberBIOS):
+   cabecera oscura con la estela celeste, A RETIRAR (verde) y TOTAL (azul) en
+   grande, y la tabla de dónde vino la plata con el efectivo y lo digital en
+   columnas. Los colores son los de ese programa (ui/hoja_de_estilos.py de
+   FRKiosko), mezclados con la superficie para que anden también en el modo
+   oscuro. ===== */
+.expense-item[data-cierre-id] { cursor: pointer; }
+.cierre-auto { font-size: 12px; opacity: 0.8; }
+/* La hoja del modal es flex en columna: sin esto, cuando el detalle es más alto que
+   la pantalla, la cabecera (que tiene overflow hidden) se achataba hasta desaparecer. */
+.detalle-cierre-sheet > * { flex-shrink: 0; }
+.cierre-cabecera {
+  display: flex; align-items: center; gap: 12px;
+  background: #1E2330; color: #F1F4F9;
+  border: 1px solid #2B3242; border-radius: 12px;
+  padding: 14px 16px 0; margin-top: 6px;
+  position: relative; overflow: hidden;
+}
+.cierre-cabecera::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: linear-gradient(90deg, rgba(76,141,255,0) 0%, rgba(76,141,255,0.35) 55%, #4C8DFF 92%, #EAF4FF 100%);
+}
+.cierre-cabecera-icono { font-size: 26px; padding-bottom: 14px; }
+.cierre-cabecera-textos { flex: 1; min-width: 0; padding-bottom: 14px; }
+.cierre-cabecera-titulo { font-size: 18px; font-weight: 700; }
+.cierre-cabecera-detalle { font-size: 12px; color: #9AA4B5; }
+.cierre-pastilla {
+  align-self: flex-start; margin-top: 2px;
+  font-size: 11px; font-weight: 700; letter-spacing: .5px; color: #CBD5E6;
+  background: #2B3242; border: 1px solid #3A4357; border-radius: 999px; padding: 4px 10px; white-space: nowrap;
+}
+.cierre-cifras { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.cierre-cifra { border-radius: 12px; padding: 12px 14px; border: 1px solid; min-width: 0; }
+.cierre-cifra.verde { background: color-mix(in srgb, #1E9E50 10%, var(--surface-1)); border-color: color-mix(in srgb, #1E9E50 35%, var(--surface-1)); }
+.cierre-cifra.azul  { background: color-mix(in srgb, #2F6FED 10%, var(--surface-1)); border-color: color-mix(in srgb, #2F6FED 35%, var(--surface-1)); }
+.cierre-cifra-titulo { font-size: 10.5px; font-weight: 700; letter-spacing: .6px; }
+.cierre-cifra.verde .cierre-cifra-titulo { color: #1D6B3D; }
+.cierre-cifra.azul .cierre-cifra-titulo { color: #1D4FA8; }
+.cierre-cifra-valor { font-size: 24px; font-weight: 800; line-height: 1.2; font-variant-numeric: proportional-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cierre-cifra.verde .cierre-cifra-valor { color: #1E9E50; }
+.cierre-cifra.azul .cierre-cifra-valor { color: #2F6FED; }
+.cierre-cifra-nota { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.cierre-tabla { margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; padding: 8px 14px 10px; background: var(--surface-1); }
+.cierre-encabezado, .cierre-fila { display: grid; grid-template-columns: 26px 1fr 82px 82px; align-items: center; column-gap: 8px; }
+.cierre-encabezado { font-size: 10.5px; font-weight: 700; letter-spacing: .5px; color: var(--text-muted); padding: 4px 0 6px; }
+.cierre-encabezado span:nth-child(n+3), .cierre-fila-monto { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cierre-fila { padding: 9px 0; border-top: 1px solid var(--gridline); font-size: 14px; }
+.cierre-fila-icono { font-size: 15px; text-align: center; }
+.cierre-fila-nombre { font-weight: 600; min-width: 0; }
+.cierre-fila-nombre small { display: block; font-weight: 400; font-size: 11px; color: var(--text-muted); }
+.cierre-fila.vacia .cierre-fila-nombre, .cierre-fila.vacia .cierre-fila-monto { color: var(--text-muted); font-weight: 400; }
+.cierre-fila.vacia .cierre-fila-icono { opacity: .35; }
+.cierre-fila-detalle { font-size: 12px; color: var(--text-muted); padding: 0 0 8px 34px; }
+.cierre-fila-total { border-top: 2px solid var(--baseline); }
+.cierre-fila-total .cierre-fila-nombre, .cierre-fila-total .cierre-fila-monto { font-weight: 700; }
+.cierre-fila-cambio .cierre-fila-nombre { color: var(--text-secondary); }
+.cierre-nota {
+  margin-top: 10px; font-size: 13px; color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-muted) 10%, var(--surface-1)); border-radius: 10px; padding: 10px 12px;
+}
+.cierre-nota.alerta { color: var(--critical); background: var(--critical-bg); }
