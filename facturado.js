@@ -526,7 +526,54 @@ export function openDetalleCierre(cierre) {
     : "";
   nota.innerHTML = [apertura, texto].filter(Boolean).map(escapeHtml).join("<br>");
   nota.classList.toggle("alerta", alerta);
+  dibujarTareasDelCierre(cierre.tareas);
   $("#modal-detalle-cierre").classList.add("active");
+}
+
+// Abajo de todo, las TAREAS DEL TURNO que manda FRKiosko con el cierre (desde el
+// 2026-11-03): cada una con su hora, hecha (quién y a qué hora) o sin hacer, en
+// rojo, con quiénes la pospusieron. Como estaban al cerrar la caja. El resumen de
+// caja de arriba no cambia; sin tareas (un cierre de antes, uno cargado a mano o
+// un turno sin tareas) el cuadro no aparece.
+function dibujarTareasDelCierre(tareas) {
+  const caja = $("#detalle-cierre-tareas");
+  if (!Array.isArray(tareas) || !tareas.length) {
+    caja.hidden = true;
+    caja.innerHTML = "";
+    return;
+  }
+  const sinHacer = tareas.filter(t => !t.hecha).length;
+  // Un cierre que cubre varios días (se cerró tarde) lleva el día delante de la hora.
+  const variosDias = new Set(tareas.map(t => t.dia)).size > 1;
+  let html = `<div class="cierre-tareas-cabecera">
+    <span class="cierre-tareas-titulo">⏰ TAREAS DEL TURNO</span>
+    <span class="cierre-tareas-cuenta${sinHacer ? "" : " todas"}">${sinHacer ? `${sinHacer} sin hacer` : "Todas hechas"}</span>
+  </div>`;
+  tareas.forEach(t => {
+    const dia = variosDias && t.dia ? `${t.dia.slice(8, 10)}/${t.dia.slice(5, 7)} ` : "";
+    const detalle = t.hecha
+      ? `Hecha por ${t.hechaPor || "?"}${t.hechaA ? ` a las ${t.hechaA}` : ""}`
+      : ["Sin hacer", textoPospuesta(t.pospusieron, t.vecesPospuesta)].filter(Boolean).join(" · ");
+    html += `<div class="cierre-tarea${t.hecha ? "" : " sin-hacer"}">
+      <span class="cierre-tarea-marca">${t.hecha ? "✔" : "✖"}</span>
+      <span class="cierre-tarea-hora">${escapeHtml(dia + (t.hora || ""))}</span>
+      <span class="cierre-tarea-texto">${escapeHtml(t.texto || "")}<small>${escapeHtml(detalle)}</small></span>
+    </div>`;
+  });
+  caja.innerHTML = html;
+  caja.hidden = false;
+}
+
+// "la pospuso Carla", "la pospuso Carla 2 veces", "la pospusieron Carla y Mariana 3 veces".
+function textoPospuesta(nombres, veces) {
+  const quienes = Array.isArray(nombres) ? nombres.filter(Boolean) : [];
+  const cuantas = Number(veces) || 0;
+  if (!quienes.length || !cuantas) return "";
+  const lista = quienes.length > 1
+    ? `${quienes.slice(0, -1).join(", ")} y ${quienes[quienes.length - 1]}`
+    : quienes[0];
+  const vecesTexto = cuantas > 1 ? ` ${cuantas} veces` : "";
+  return `${quienes.length > 1 ? "la pospusieron" : "la pospuso"} ${lista}${vecesTexto}`;
 }
 
 export function closeModalDetalleCierre() {
