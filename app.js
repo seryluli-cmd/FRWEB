@@ -29,7 +29,8 @@ import {
 import {
   listenFacturacion, renderFacturado, renderPagadorChipsFacturado,
   exportFacturacionCSV, resetFotoFieldFact, actualizarChipsTurnoPorFecha, registrarEdicionManualFacturado,
-  openModalFacturado, closeModalFacturado, saveCierre, deleteCierre, openDetalleCierre, closeModalDetalleCierre
+  openModalFacturado, closeModalFacturado, saveCierre, deleteCierre, openDetalleCierre, closeModalDetalleCierre,
+  alternarDiaCierres
 } from "./facturado.js";
 import { renderComparar, initComparar } from "./comparar.js";
 import { renderResumen, renderBalance, listenCajaInicio, abrirModalCajaInicio, cerrarModalCajaInicio, guardarCajaInicio } from "./resumen.js";
@@ -477,6 +478,9 @@ function wireEvents() {
 
   // Editar y borrar de un cierre ya cargado (delegado, admin)
   $("#facturado-list").addEventListener("click", (e) => {
+    // La fila de un día abre o cierra las tarjetas de sus turnos.
+    const diaBtn = e.target.closest(".cierre-dia-head");
+    if (diaBtn) { alternarDiaCierres(diaBtn); return; }
     const fotoBtn = e.target.closest(".foto-link");
     if (fotoBtn) { window.open(fotoBtn.dataset.url, "_blank", "noopener"); return; }
     const editBtn = e.target.closest(".cierre-edit-btn");

@@ -71,7 +71,7 @@ function renderCierreItem(f) {
   // corta en un celular real. Avatar/monto/íconos quedan abajo, mismo
   // patrón que .expense-item-actions en Gastos.
   li.innerHTML = `
-    <div class="desc">${turnoLabel ? escapeHtml(turnoLabel) + ", " : ""}${escapeHtml(f.registradoPor || "?")}${horaCarga ? " " + horaCarga + " hs" : ""} · ${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}${marcaAuto}</div>
+    <div class="desc">${turnoLabel ? `<span class="cierre-turno-nombre">${escapeHtml(turnoLabel)}</span>, ` : ""}${escapeHtml(f.registradoPor || "?")}${horaCarga ? " " + horaCarga + " hs" : ""} · ${fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}${marcaAuto}</div>
     <div class="expense-item-top">
       <div class="avatar" style="background:${payerColorVar(f.registradoPor)}">${socioInitial(f.registradoPor)}</div>
       <div class="amount">${money(f.importe)}</div>
@@ -100,6 +100,82 @@ function renderCierreFaltante(fecha, turno) {
     </div>
   `;
   return li;
+}
+
+// "año-mes-día" de una fecha — la clave con que se agrupan los cierres por
+// día y se recuerda qué días dejó abiertos cada uno.
+function claveDia(fecha) {
+  return `${fecha.getFullYear()}-${fecha.getMonth()}-${fecha.getDate()}`;
+}
+
+// Un día de la lista: arriba la fila compacta (el día y su total, y abajo
+// lo de cada turno, igual que "Facturado por día y turno" en Resumen
+// mensual, con el día y los turnos en violeta para ubicarlos rápido); al
+// tocarla se abren debajo las tarjetas de ese día (ver alternarDiaCierres).
+// En la fila, cada turno muestra:
+//   - lo cargado, si ya tiene cierre;
+//   - "falta" en rojo, si ya venció y nadie lo cargó (adentro va la
+//     tarjeta "⚠️ CAJA NO CARGADA" con su botón Cargar);
+//   - $0, si todavía está en curso o no empezó.
+function renderDiaCierres(dia, now, diaAbiertoPorDefecto) {
+  const abierto = dia.key in state.facturadoDiasAbiertos
+    ? state.facturadoDiasAbiertos[dia.key]
+    : dia.key === diaAbiertoPorDefecto;
+  const suma = (cierres) => cierres.reduce((s, f) => s + (Number(f.importe) || 0), 0);
+
+  let total = suma(dia.otros);
+  const tarjetas = [];
+  const turnosHtml = TURNOS.map(turno => {
+    const nombre = `<span class="cierre-dia-turno">${escapeHtml(turnoLabelParaFecha(dia.fecha, turno))}:</span>`;
+    const cierres = dia.porTurno[turno];
+    if (cierres.length) {
+      const monto = suma(cierres);
+      total += monto;
+      cierres.forEach(f => tarjetas.push(renderCierreItem(f)));
+      return `<span>${nombre} ${money(monto)}</span>`;
+    }
+    if (turnoVencimiento(dia.fecha, turno) <= now) {
+      tarjetas.push(renderCierreFaltante(dia.fecha, turno));
+      return `<span>${nombre} <span class="cierre-dia-falta">falta</span></span>`;
+    }
+    return `<span>${nombre} ${money(0)}</span>`;
+  }).join("");
+  dia.otros.forEach(f => tarjetas.push(renderCierreItem(f)));
+
+  const esHoy = dia.fecha.toDateString() === now.toDateString();
+  const nombreDia = esHoy
+    ? "Hoy"
+    : dia.fecha.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "short" });
+
+  const li = document.createElement("li");
+  li.className = "cierre-dia" + (abierto ? " abierto" : "");
+  li.innerHTML = `
+    <button type="button" class="cierre-dia-head" data-dia="${dia.key}" aria-expanded="${abierto}">
+      <span class="cierre-dia-row">
+        <span class="cierre-dia-nombre">${escapeHtml(nombreDia)}<span class="cierre-dia-flecha" aria-hidden="true">›</span></span>
+        <span class="cierre-dia-total">${money(total)}</span>
+      </span>
+      <span class="cierre-dia-turnos">${turnosHtml}</span>
+    </button>
+    <ul class="cierre-dia-lista"></ul>
+  `;
+  const ul = li.querySelector(".cierre-dia-lista");
+  if (tarjetas.length) {
+    tarjetas.forEach(t => ul.appendChild(t));
+  } else {
+    ul.innerHTML = `<li class="cierre-dia-vacio">Todavía no hay cierres de este día.</li>`;
+  }
+  return li;
+}
+
+// Abre o cierra un día de la lista (el botón de su fila). Se cambia en el
+// lugar, sin redibujar toda la lista, y se recuerda para los redibujos.
+export function alternarDiaCierres(boton) {
+  const li = boton.closest(".cierre-dia");
+  const abierto = !li.classList.contains("abierto");
+  li.classList.toggle("abierto", abierto);
+  boton.setAttribute("aria-expanded", String(abierto));
+  state.facturadoDiasAbiertos[boton.dataset.dia] = abierto;
 }
 
 // Antes la grilla de turnos era siempre la del mes en curso, y todo el
@@ -139,46 +215,43 @@ export function renderFacturado() {
   });
   const totalMes = itemsMes.reduce((sum, f) => sum + (Number(f.importe) || 0), 0);
 
-  // Mapa "año-mes-día-turno" -> cierre real, para cruzarlo contra la
-  // grilla de turnos esperados del mes y saber cuáles faltan.
-  const porSlot = new Map();
-  itemsMes.forEach(f => {
-    const fecha = fechaDeRegistro(f);
-    porSlot.set(`${fecha.getFullYear()}-${fecha.getMonth()}-${fecha.getDate()}-${f.turno}`, f);
-  });
-
   // Grilla del mes elegido: día 1 hasta hoy (o hasta fin de mes si ya
-  // pasó), más reciente primero, y dentro de cada día en orden Mañana →
-  // Tarde → Noche. Cada slot ya vencido sale como cierre real o faltante.
-  const porDia = new Map(); // "año-mes-día" -> { fecha, turnos: [{turno, real}] }
-  turnosDelMes(base).forEach(({ fecha, turno }) => {
-    const diaKey = `${fecha.getFullYear()}-${fecha.getMonth()}-${fecha.getDate()}`;
-    if (!porDia.has(diaKey)) porDia.set(diaKey, { fecha, turnos: [] });
-    porDia.get(diaKey).turnos.push({ turno, real: porSlot.get(`${diaKey}-${turno}`) || null });
+  // pasó), más reciente primero. Cada día es una fila como la de Resumen
+  // mensual ("Mañana: $… Tarde: $… Noche: $…" y el total del día) y, al
+  // tocarla, se abren abajo las tarjetas de sus turnos en orden Mañana →
+  // Tarde → Noche (ver renderDiaCierres). Si un mismo turno se cargó dos
+  // veces se ven las dos y suman, igual que en Resumen mensual; los cierres
+  // con un turno no estándar (datos viejos) van al final de su día.
+  const dias = new Map(); // "año-mes-día" -> { key, fecha, porTurno, otros }
+  const diaDe = (fecha) => {
+    const key = claveDia(fecha);
+    if (!dias.has(key)) {
+      dias.set(key, {
+        key,
+        fecha: new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()),
+        porTurno: { "mañana": [], "tarde": [], "noche": [] },
+        otros: []
+      });
+    }
+    return dias.get(key);
+  };
+  turnosDelMes(base).forEach(({ fecha }) => diaDe(fecha));
+  const horaDeCarga = (f) => (f.creadoEn && f.creadoEn.toMillis ? f.creadoEn.toMillis() : 0);
+  itemsMes.slice().sort((a, b) => horaDeCarga(a) - horaDeCarga(b)).forEach(f => {
+    const dia = diaDe(fechaDeRegistro(f));
+    if (TURNOS.includes(f.turno)) dia.porTurno[f.turno].push(f);
+    else dia.otros.push(f);
   });
-  const diasDelMes = Array.from(porDia.values()).sort((a, b) => b.fecha - a.fecha);
 
-  const idsEnGrilla = new Set();
-  diasDelMes.forEach(dia => dia.turnos.forEach(t => { if (t.real) idsEnGrilla.add(t.real.id); }));
-
-  // Cierres del mes que no encajaron en la grilla (ej. turno con valor
-  // no estándar por datos viejos) — se listan igual, para no perderlos.
-  const restoDelMes = itemsMes
-    .filter(f => !idsEnGrilla.has(f.id))
-    .slice()
-    .sort((a, b) => fechaDeRegistro(b) - fechaDeRegistro(a));
-
-  diasDelMes.forEach(dia => {
-    dia.turnos.forEach(({ turno, real }) => {
-      if (real) {
-        list.appendChild(renderCierreItem(real));
-      } else if (turnoVencimiento(dia.fecha, turno) <= now) {
-        list.appendChild(renderCierreFaltante(dia.fecha, turno));
-      }
-      // si no venció y no hay cierre real, todavía está en curso: no se muestra nada.
-    });
-  });
-  restoDelMes.forEach(f => list.appendChild(renderCierreItem(f)));
+  // De entrada queda abierto el día del turno que se está trabajando (a las
+  // 2 de la mañana es el de ayer, porque esa Noche arrancó ayer); el resto
+  // cerrado. Lo que cada uno abre o cierra a mano se respeta en cada
+  // redibujo (state.facturadoDiasAbiertos), así un cierre nuevo que llega
+  // de Firestore no le cierra el día que estaba mirando.
+  const diaAbiertoPorDefecto = claveDia(fechaParaTurno(turnoActual()));
+  Array.from(dias.values())
+    .sort((a, b) => b.fecha - a.fecha)
+    .forEach(dia => list.appendChild(renderDiaCierres(dia, now, diaAbiertoPorDefecto)));
 
   empty.classList.toggle("hidden", list.children.length > 0);
 

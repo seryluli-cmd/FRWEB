@@ -125,15 +125,20 @@ transacción diaria), no crecen de la misma forma.
   dentro de ese día.
 - **Detección de cajas faltantes** (`turnosDelMes()` / `turnoVencimiento()`
   en utils.js, usadas desde facturado.js): la lista de "Cierre de Turno" arma la grilla completa del mes
-  en curso (día 1 a hoy, orden Mañana → Tarde → Noche, más reciente
-  primero). Cualquier turno cuya ventana + los 40 min de gracia ya pasaron
-  y todavía no tiene cierre cargado aparece como fila roja "⚠️ CAJA NO
+  elegido (día 1 a hoy, o a fin de mes en un mes ya cerrado), **agrupada
+  por día** (`renderDiaCierres`): una fila por día, más reciente primero,
+  como la de Resumen mensual pero un 20% más grande y con el día y los
+  turnos en violeta — el total del día y "Mañana: $… Tarde: $… Noche: $…".
+  En la fila, un turno todavía en curso va en $0 y uno vencido (ventana +
+  los 40 min de gracia) sin cierre dice "falta" en rojo. Tocar la fila abre
+  debajo las tarjetas de ese día (Mañana → Tarde → Noche): los cierres
+  reales y, por cada turno vencido sin cargar, la tarjeta roja "⚠️ CAJA NO
   CARGADA" con un botón **Cargar** — lo puede usar cualquiera (admin o
   colaborador) en cualquier momento, abre "Nuevo cierre" con esa fecha/turno
-  ya preseleccionados. Un turno todavía en curso (no venció) simplemente no
-  se muestra hasta que se cargue o venza. Esto no se reconstruye para
-  meses anteriores a hoy — ahí la lista sigue mostrando solo lo real, sin
-  grilla de faltantes.
+  ya preseleccionados. De entrada queda abierto el día del turno en curso
+  (de madrugada, el de ayer: la Noche arrancó ayer); lo que se abre o cierra
+  a mano se recuerda en `state.facturadoDiasAbiertos` mientras la app siga
+  abierta.
 - **`ideas`** — `{ texto, estado, votos, propuestoPor, creadoEn }`. `estado`
   es `"pendiente"` o `"concretada"`; `votos` es un array de nombres (🔥,
   toggle libre). Pendientes ordenadas por cantidad de votos. Cualquiera

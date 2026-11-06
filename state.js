@@ -96,6 +96,7 @@ export const state = {
   resumenCategoriasAbiertas: new Set(), // categorías de "Gastos por categoría" con el detalle desplegado — se guarda acá y no en el DOM porque renderResumen() redibuja todo en cada cambio de Firestore y se cerrarían solas
   gastosMesOffset: 0,   // ídem, para la pantalla de Gastos — se reinicia a 0 cada vez que se entra
   facturadoMesOffset: 0, // ídem, para la pantalla de Facturado/Cierre de turno
+  facturadoDiasAbiertos: {}, // "año-mes-día" -> true/false: días de Cierre de Turno abiertos o cerrados a mano
   gastosAdminMesOffset: 0, // ídem, para la pantalla de Gastos S/Admin
 
   pendingFirebaseConfig: null, // config guardada entre el paso 1 y 2 del setup inicial

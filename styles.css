@@ -755,6 +755,48 @@ input:focus, select:focus, textarea:focus {
 .expense-item-faltante .falta-desc { color: var(--critical); font-weight: 700; white-space: normal; }
 .expense-item-faltante .btn-cargar-faltante { width: auto; flex-shrink: 0; padding: 8px 14px; font-size: 14px; }
 
+/* Cierre de Turno agrupado por día (ver renderDiaCierres en facturado.js):
+   la fila del día es la de "Facturado por día y turno" de Resumen mensual,
+   un 20% más grande (letra, relleno y separaciones), con el día y los
+   turnos en violeta para ubicarlos rápido; al tocarla se abren abajo las
+   tarjetas de sus turnos, colgadas de una línea violeta. */
+.cierre-dia { margin-bottom: 12px; }
+.cierre-dia-head {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 17px;
+  cursor: pointer;
+}
+.cierre-dia.abierto .cierre-dia-head { border-color: color-mix(in srgb, var(--series-1) 55%, var(--border)); }
+.cierre-dia-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+.cierre-dia-nombre { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17.5px; color: var(--series-1); }
+.cierre-dia-flecha { color: var(--text-muted); font-size: 20px; line-height: 1; transition: transform 0.15s ease; }
+.cierre-dia.abierto .cierre-dia-flecha { transform: rotate(90deg); }
+.cierre-dia-total { font-weight: 700; font-size: 19px; font-variant-numeric: proportional-nums; white-space: nowrap; }
+/* Tres columnas parejas: con la letra más grande, en un celular no entran
+   los tres turnos en una línea; así cada uno parte "Mañana:" / "$197.000"
+   en su columna en vez de mandar la Noche sola a otra fila. */
+.cierre-dia-turnos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 12px; font-size: 15px; color: var(--text-primary); }
+.cierre-dia-turno { color: var(--series-1); font-weight: 600; }
+.cierre-dia-falta { color: var(--critical); font-weight: 700; }
+.cierre-dia-lista {
+  list-style: none;
+  margin: 10px 0 0 10px;
+  padding: 0 0 0 12px;
+  border-left: 2px solid color-mix(in srgb, var(--series-1) 45%, transparent);
+}
+.cierre-dia:not(.abierto) .cierre-dia-lista { display: none; }
+.cierre-dia-lista > li:last-child { margin-bottom: 0; }
+.cierre-dia-vacio { color: var(--text-secondary); font-size: 14px; padding: 6px 0; }
+/* El turno dentro de cada tarjeta, también en violeta. */
+.cierre-turno-nombre { color: var(--series-1); }
+
 .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
 
 .socios-totales { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
