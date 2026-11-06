@@ -129,7 +129,7 @@ transacción diaria), no crecen de la misma forma.
   por día** (`renderDiaCierres`): una fila por día, más reciente primero,
   como la de Resumen mensual pero un 20% más grande, con el día en violeta
   y el total del día, y debajo tres columnas MAÑANA / TARDE / NOCHE (en
-  naranja, mayúscula y otro 20% más grandes; también así en cada tarjeta)
+  celeste, mayúscula y otro 20% más grandes; también así en cada tarjeta)
   con lo de cada turno. En la fila, un turno todavía en curso va en $0 y
   uno vencido (ventana + los 40 min de gracia) sin cierre pasa a rojo y
   dice "falta". Tocar la fila abre

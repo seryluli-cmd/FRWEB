@@ -110,7 +110,7 @@ function claveDia(fecha) {
 
 // Un día de la lista: arriba la fila compacta (el día y su total, y abajo
 // lo de cada turno, igual que "Facturado por día y turno" en Resumen
-// mensual, con el día en violeta y los turnos en naranja y en mayúscula,
+// mensual, con el día en violeta y los turnos en celeste y en mayúscula,
 // para ubicarlos rápido); al
 // tocarla se abren debajo las tarjetas de ese día (ver alternarDiaCierres).
 // En la fila, cada turno muestra:
