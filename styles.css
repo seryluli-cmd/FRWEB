@@ -757,9 +757,10 @@ input:focus, select:focus, textarea:focus {
 
 /* Cierre de Turno agrupado por día (ver renderDiaCierres en facturado.js):
    la fila del día es la de "Facturado por día y turno" de Resumen mensual,
-   un 20% más grande (letra, relleno y separaciones), con el día y los
-   turnos en violeta para ubicarlos rápido; al tocarla se abren abajo las
-   tarjetas de sus turnos, colgadas de una línea violeta. */
+   un 20% más grande (letra, relleno y separaciones), con el día en violeta
+   y los turnos en naranja, en mayúscula y otro 20% más grandes, para
+   ubicarlos rápido; al tocarla se abren abajo las tarjetas de sus turnos,
+   colgadas de una línea violeta. */
 .cierre-dia { margin-bottom: 12px; }
 .cierre-dia-head {
   display: block;
@@ -782,8 +783,14 @@ input:focus, select:focus, textarea:focus {
 /* Tres columnas parejas: con la letra más grande, en un celular no entran
    los tres turnos en una línea; así cada uno parte "Mañana:" / "$197.000"
    en su columna en vez de mandar la Noche sola a otra fila. */
-.cierre-dia-turnos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 12px; font-size: 15px; color: var(--text-primary); }
-.cierre-dia-turno { color: var(--series-1); font-weight: 600; }
+.cierre-dia-turnos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 12px; font-size: 18px; color: var(--text-primary); }
+/* Siempre el turno arriba y el monto abajo, así las tres columnas quedan
+   parejas aunque una entre en un renglón y otra no ("TARDE: $0" vs
+   "MAÑANA: $500.000"). */
+.cierre-dia-turnos > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cierre-dia-turno { color: var(--series-2); font-weight: 700; text-transform: uppercase; }
+/* Turno vencido sin cargar: nombre y "falta" en rojo. */
+.cierre-dia-turno.vencido,
 .cierre-dia-falta { color: var(--critical); font-weight: 700; }
 .cierre-dia-lista {
   list-style: none;
@@ -794,8 +801,13 @@ input:focus, select:focus, textarea:focus {
 .cierre-dia:not(.abierto) .cierre-dia-lista { display: none; }
 .cierre-dia-lista > li:last-child { margin-bottom: 0; }
 .cierre-dia-vacio { color: var(--text-secondary); font-size: 14px; padding: 6px 0; }
-/* El turno dentro de cada tarjeta, también en violeta. */
-.cierre-turno-nombre { color: var(--series-1); }
+/* El turno dentro de cada tarjeta, igual que en la fila del día: naranja,
+   en mayúscula y un 20% más grande que el resto del texto. */
+.cierre-turno-nombre { color: var(--series-2); font-weight: 700; text-transform: uppercase; font-size: 1.2em; }
+.cierre-turno-mayus { text-transform: uppercase; font-weight: 700; font-size: 1.2em; }
+/* Con el turno más grande, "NOCHE, Maximiliano 06:00 hs · 04-nov 🖥️" no
+   entra en un celular: en vez de cortarse con "…" pasa a un segundo renglón. */
+.cierre-dia-lista .expense-item .desc { white-space: normal; }
 
 .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
 

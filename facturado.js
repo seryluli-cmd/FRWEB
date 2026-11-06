@@ -94,7 +94,7 @@ function renderCierreFaltante(fecha, turno) {
     <div class="expense-item-top">
       <div class="info">
         <div class="desc falta-desc">⚠️ CAJA NO CARGADA</div>
-        <div class="meta">${escapeHtml(turnoLabelParaFecha(fecha, turno))} — ${fecha.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "short" })}</div>
+        <div class="meta"><span class="cierre-turno-mayus">${escapeHtml(turnoLabelParaFecha(fecha, turno))}</span> — ${fecha.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "short" })}</div>
       </div>
       <button type="button" class="btn-secondary btn-cargar-faltante" data-fecha="${fechaLocalISO(fecha)}" data-turno="${turno}">Cargar</button>
     </div>
@@ -110,11 +110,12 @@ function claveDia(fecha) {
 
 // Un día de la lista: arriba la fila compacta (el día y su total, y abajo
 // lo de cada turno, igual que "Facturado por día y turno" en Resumen
-// mensual, con el día y los turnos en violeta para ubicarlos rápido); al
+// mensual, con el día en violeta y los turnos en naranja y en mayúscula,
+// para ubicarlos rápido); al
 // tocarla se abren debajo las tarjetas de ese día (ver alternarDiaCierres).
 // En la fila, cada turno muestra:
 //   - lo cargado, si ya tiene cierre;
-//   - "falta" en rojo, si ya venció y nadie lo cargó (adentro va la
+//   - "falta", con el turno entero en rojo, si ya venció y nadie lo cargó (adentro va la
 //     tarjeta "⚠️ CAJA NO CARGADA" con su botón Cargar);
 //   - $0, si todavía está en curso o no empezó.
 function renderDiaCierres(dia, now, diaAbiertoPorDefecto) {
@@ -126,19 +127,20 @@ function renderDiaCierres(dia, now, diaAbiertoPorDefecto) {
   let total = suma(dia.otros);
   const tarjetas = [];
   const turnosHtml = TURNOS.map(turno => {
-    const nombre = `<span class="cierre-dia-turno">${escapeHtml(turnoLabelParaFecha(dia.fecha, turno))}:</span>`;
+    const nombre = (clase = "") => `<span class="cierre-dia-turno${clase}">${escapeHtml(turnoLabelParaFecha(dia.fecha, turno))}:</span>`;
     const cierres = dia.porTurno[turno];
     if (cierres.length) {
       const monto = suma(cierres);
       total += monto;
       cierres.forEach(f => tarjetas.push(renderCierreItem(f)));
-      return `<span>${nombre} ${money(monto)}</span>`;
+      return `<span>${nombre()} ${money(monto)}</span>`;
     }
     if (turnoVencimiento(dia.fecha, turno) <= now) {
       tarjetas.push(renderCierreFaltante(dia.fecha, turno));
-      return `<span>${nombre} <span class="cierre-dia-falta">falta</span></span>`;
+      // Vencido y sin cargar: el turno entero (nombre y "falta") en rojo.
+      return `<span>${nombre(" vencido")} <span class="cierre-dia-falta">falta</span></span>`;
     }
-    return `<span>${nombre} ${money(0)}</span>`;
+    return `<span>${nombre()} ${money(0)}</span>`;
   }).join("");
   dia.otros.forEach(f => tarjetas.push(renderCierreItem(f)));
 

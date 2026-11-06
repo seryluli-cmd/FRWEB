@@ -127,10 +127,12 @@ transacción diaria), no crecen de la misma forma.
   en utils.js, usadas desde facturado.js): la lista de "Cierre de Turno" arma la grilla completa del mes
   elegido (día 1 a hoy, o a fin de mes en un mes ya cerrado), **agrupada
   por día** (`renderDiaCierres`): una fila por día, más reciente primero,
-  como la de Resumen mensual pero un 20% más grande y con el día y los
-  turnos en violeta — el total del día y "Mañana: $… Tarde: $… Noche: $…".
-  En la fila, un turno todavía en curso va en $0 y uno vencido (ventana +
-  los 40 min de gracia) sin cierre dice "falta" en rojo. Tocar la fila abre
+  como la de Resumen mensual pero un 20% más grande, con el día en violeta
+  y el total del día, y debajo tres columnas MAÑANA / TARDE / NOCHE (en
+  naranja, mayúscula y otro 20% más grandes; también así en cada tarjeta)
+  con lo de cada turno. En la fila, un turno todavía en curso va en $0 y
+  uno vencido (ventana + los 40 min de gracia) sin cierre pasa a rojo y
+  dice "falta". Tocar la fila abre
   debajo las tarjetas de ese día (Mañana → Tarde → Noche): los cierres
   reales y, por cada turno vencido sin cargar, la tarjeta roja "⚠️ CAJA NO
   CARGADA" con un botón **Cargar** — lo puede usar cualquiera (admin o
