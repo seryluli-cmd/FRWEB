@@ -1,6 +1,8 @@
 // ============================================================
 // Estadísticas (solo admin) — tres vistas calculadas sobre los gastos y
 // cierres ya guardados, no tocan ni mueven ningún dato:
+// Arriba de todo, una etiqueta con el mes en curso contra el anterior, cortados
+// en el mismo día y turno (ver datosCorte).
 // Se eligen con cuatro fichas (X MES, X TURNO, X TRAMO, X EMPLEADO) que
 // adelantan el dato clave de cada vista para el mes elegido:
 //   · "Por mes":   un bloque por mes con Efectivo, Digital, suma y Gastos.
@@ -13,7 +15,7 @@
 //     el podio de turnos: cuál de los turnos subió más su promedio.
 // ============================================================
 import { state } from "./state.js";
-import { $, $$, escapeHtml, fechaBaseMes, fechaDeRegistro, mesLabel, money, TURNOS, TURNO_LABEL } from "./utils.js";
+import { $, $$, escapeHtml, fechaBaseMes, fechaDeRegistro, mesLabel, MESES, money, TURNOS, TURNO_LABEL } from "./utils.js";
 import { payerColorVar } from "./identidad.js";
 import { gastosDelNegocio } from "./gastos.js";
 import { facturacionesDelNegocio } from "./facturado.js";
@@ -872,6 +874,102 @@ function renderFichas() {
   dato("equipo", fichaEquipoHtml(datosEquipo(ui.offset), datosEquipo(ui.offset - 1)));
 }
 
+// ---------- Etiqueta "hasta el mismo día y turno" ----------
+
+// Día y turno de un cierre en un solo número (Mañana → Tarde → Noche dentro de
+// cada día), para saber cuál es el más reciente y cortar los dos meses ahí.
+// null si el cierre no tiene uno de los turnos del negocio.
+function posicionTurno(dia, turno) {
+  const i = TURNOS.indexOf(turno);
+  return i < 0 ? null : dia * TURNOS.length + i;
+}
+
+// Lo facturado en el mes en curso hasta el último turno cerrado, contra lo del
+// mes anterior hasta ese mismo día y turno: mismos días y mismos turnos de los
+// dos lados. El corte sale del último cierre cargado, no de la hora: si la Tarde
+// ya terminó pero nadie la cargó, el corte queda en la Mañana, así no se pone un
+// turno que este mes todavía falta contra uno que el mes pasado sí está.
+// La Noche cuenta en el día en que arrancó (así se guarda el cierre).
+// Siempre habla del mes en curso, sin importar qué mes se esté navegando.
+function datosCorte() {
+  const hoy = new Date();
+  const lado = (offset) => {
+    const base = fechaBaseMes(offset);
+    const cierres = facturacionesDelNegocio().filter(f => {
+      const d = fechaDeRegistro(f);
+      return d.getFullYear() === base.getFullYear() && d.getMonth() === base.getMonth();
+    });
+    return { base, cierres };
+  };
+  const act = lado(0);
+  const ant = lado(-1);
+
+  // Un cierre con fecha más adelante que hoy (cargado con el día mal elegido)
+  // no puede mover el corte hacia el futuro.
+  let corte = null;
+  act.cierres.forEach(f => {
+    const d = fechaDeRegistro(f);
+    if (d.getDate() > hoy.getDate()) return;
+    const p = posicionTurno(d.getDate(), f.turno);
+    if (p !== null && (corte === null || p > corte)) corte = p;
+  });
+  if (corte === null) return { act, ant, corte: null };
+
+  const dia = Math.floor(corte / TURNOS.length);
+  const turno = TURNOS[corte % TURNOS.length];
+  // Mes anterior más corto que el día de hoy (ej. 31 de marzo contra febrero):
+  // se compara contra ese mes entero.
+  const diasAnt = new Date(ant.base.getFullYear(), ant.base.getMonth() + 1, 0).getDate();
+  ant.completo = dia > diasAnt;
+
+  // Los días anteriores al del corte entran enteros; el día del corte, solo
+  // hasta su turno. La misma regla para los dos meses.
+  const entra = (f) => {
+    const d = fechaDeRegistro(f).getDate();
+    if (d < dia) return true;
+    const p = posicionTurno(d, f.turno);
+    return p !== null && p <= corte;
+  };
+  [act, ant].forEach(l => {
+    const dentro = l.completo ? l.cierres : l.cierres.filter(entra);
+    l.total = dentro.reduce((s, f) => s + (Number(f.importe) || 0), 0);
+    // Turnos distintos con cierre (dos cierres del mismo turno son un turno):
+    // si los dos lados no tienen los mismos, es que falta cargar alguno.
+    l.turnos = new Set(dentro.map(f => posicionTurno(fechaDeRegistro(f).getDate(), f.turno)).filter(p => p !== null)).size;
+  });
+  return { act, ant, corte, dia, turno };
+}
+
+function corteHtml(c) {
+  const mesDe = (base) => MESES[base.getMonth()];
+  const titulo = `<span class="cmp-corte-titulo">Hasta el mismo día y turno</span>`;
+  if (c.corte === null) {
+    return `<div class="cmp-corte-cab">${titulo}</div>
+      <p class="cmp-corte-nada">Todavía no se cerró ningún turno en ${mesDe(c.act.base)}.</p>`;
+  }
+
+  const hasta = `hasta el ${c.dia} (${TURNO_LABEL[c.turno]})`;
+  const turnosTxt = (n) => `<span class="cmp-corte-n">${n} ${n === 1 ? "turno" : "turnos"}</span>`;
+  let pct = "";
+  if (c.ant.total > 0) {
+    const v = Math.round(((c.act.total - c.ant.total) / c.ant.total) * 100);
+    pct = v === 0
+      ? `<span class="cmp-corte-pct">= 0%</span>`
+      : `<span class="cmp-corte-pct ${v > 0 ? "cmp-sube" : "cmp-baja"}">${v > 0 ? "▲" : "▼"} ${Math.abs(v)}%</span>`;
+  }
+  const fila = (clase, nombre, detalle, monto) => `
+      <div class="cmp-corte-fila ${clase}">
+        <div class="cmp-corte-mes"><b>${nombre}</b><small>${detalle}</small></div>
+        <b class="cmp-corte-monto">${monto}</b>
+      </div>`;
+  return `
+      <div class="cmp-corte-cab">${titulo}${pct}</div>
+      ${fila("cmp-corte-act", mesDe(c.act.base), `${hasta} · ${turnosTxt(c.act.turnos)}`, money(Math.round(c.act.total)))}
+      ${fila("cmp-corte-ant", mesDe(c.ant.base),
+        `${c.ant.completo ? "mes completo" : hasta} · ${turnosTxt(c.ant.turnos)}`,
+        c.ant.total > 0 ? money(Math.round(c.ant.total)) : "sin cierres")}`;
+}
+
 // ---------- Render ----------
 
 function actualizarNavMes(base) {
@@ -973,6 +1071,7 @@ export function renderComparar() {
   const pantalla = $("#screen-comparar");
   if (!pantalla || !state.esAdmin || !pantalla.classList.contains("active")) return;
 
+  $("#cmp-corte").innerHTML = corteHtml(datosCorte());
   $$("#cmp-vista button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.vista === ui.vista)));
   renderFichas();
   $("#cmp-vista-mes").classList.toggle("hidden", ui.vista !== "mes");
