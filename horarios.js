@@ -44,6 +44,13 @@ const MINUTOS_PARA_SEGUIR = 30;
 
 const MINUTO = 60 * 1000;
 
+// Cierres que no cuentan para los horarios (pedido del dueño, 2026-11-20): la
+// primera caja de FRKiosko, la Mañana del 04/11, se abrió a las 13:25 porque ese
+// día recién se empezó a usar el programa. No es que Zaira llegó 7 h 25 min
+// tarde. Va el nombre del documento, que lleva la fecha: si algún día FRKiosko
+// vuelve a empezar desde la caja 1, esa no queda afuera.
+const CIERRES_QUE_NO_CUENTAN = new Set(["frkiosko-1-2026-11-04"]);
+
 // Cómo terminó el rato de alguien con una caja.
 const LA_ENTREGO = "entrego";     // se la pasó a quien llegó (relevo)
 const LA_CERRO_ELLA = "cerro";    // hizo su Cierre de Turno
@@ -101,6 +108,7 @@ function tramosDeLosCierres(cierres) {
     const desde = momento(f.abiertaEn);
     const hasta = momento(f.creadoEn);
     if (f.origen !== "frkiosko" || !desde || !hasta || !(f.turno in HORA_DE_INICIO) || !f.registradoPor) return;
+    if (CIERRES_QUE_NO_CUENTAN.has(f.id)) return;
     const d = fechaDeRegistro(f);
     const turno = { dia: new Date(d.getFullYear(), d.getMonth(), d.getDate()), turno: f.turno };
     const quien = f.registradoPor;
