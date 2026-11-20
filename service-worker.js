@@ -1,4 +1,4 @@
-const CACHE_NAME = "gastos-negocio-v5";
+const CACHE_NAME = "gastos-negocio-v6";
 // app.js es un módulo ES que importa a todos los demás — si alguno de
 // estos no queda precacheado, un arranque offline (o con la red lenta
 // justo en ese archivo) puede fallar entero al no poder resolver el
@@ -20,6 +20,7 @@ const APP_SHELL = [
   "./navegacion.js",
   "./reportes.js",
   "./comparar.js",
+  "./horarios.js",
   "./resumen.js",
   "./sesion.js",
   "./setup.js",

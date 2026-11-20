@@ -712,7 +712,7 @@
            turno (la rellena comparar.js). Se ve en cualquier vista -->
       <section class="cmp-corte" id="cmp-corte" aria-label="Mes en curso contra el anterior, hasta el mismo día y turno"></section>
 
-      <!-- Las cuatro vistas son fichas de vidrio sobre un halo de color. Cada una
+      <!-- Las cinco vistas son fichas de vidrio sobre un halo de color. Cada una
            adelanta el dato clave de su vista para el mes elegido (lo rellena
            comparar.js en .cmp-ficha-dato); la elegida se enciende con el color de marca -->
       <div class="cmp-fichas" id="cmp-vista" role="group" aria-label="Tipo de comparación">
@@ -745,6 +745,14 @@
           </span>
           <span class="cmp-ficha-dato" data-dato="equipo"></span>
         </button>
+        <!-- Ancha, abajo: los horarios salen de los cierres que manda FRKiosko -->
+        <button type="button" class="cmp-ficha cmp-ficha-ancha" data-vista="horario" aria-pressed="false">
+          <span class="cmp-ficha-cab">
+            <span class="cmp-ficha-icono"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 1.5M9.5 2.5h5M12 2.5V6M18.5 6.5l1.5-1.5"/></svg></span>
+            <span class="cmp-ficha-nombre">HORARIOS DEL PERSONAL</span>
+          </span>
+          <span class="cmp-ficha-dato" data-dato="horario"></span>
+        </button>
       </div>
 
       <!-- Vista "Por mes": un bloque por mes con Efectivo, Digital, suma y Gastos -->
@@ -754,7 +762,7 @@
         <p id="comparar-empty" class="muted small hidden">Todavía no hay cierres ni gastos cargados.</p>
       </div>
 
-      <!-- Mes elegido: lo comparten "Por tramo", "Por turno" y "Equipo" -->
+      <!-- Mes elegido: lo comparten "Por tramo", "Por turno", "Equipo" y "Horarios" -->
       <div class="month-nav hidden" id="cmp-nav">
         <button id="cmp-mes-anterior" class="month-nav-btn" aria-label="Mes anterior">‹</button>
         <div class="month-nav-label" id="cmp-mes-label">Mes</div>
@@ -778,6 +786,12 @@
       <!-- Vista "Equipo": cuánto subió o bajó cada integrante contra el mes anterior -->
       <div id="cmp-vista-equipo" class="hidden">
         <div id="cmp-equipo-contenido"></div>
+      </div>
+
+      <!-- Vista "Horarios del personal": quién llegó tarde o temprano y quién debe
+           tiempo, según la hora en que abrió y cerró su caja en FRKiosko (horarios.js) -->
+      <div id="cmp-vista-horario" class="hidden">
+        <div id="cmp-horario-contenido"></div>
       </div>
     </section>
 

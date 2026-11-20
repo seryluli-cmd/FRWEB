@@ -3,8 +3,9 @@
 // cierres ya guardados, no tocan ni mueven ningún dato:
 // Arriba de todo, una etiqueta con el mes en curso contra el anterior, cortados
 // en el mismo día y turno (ver datosCorte).
-// Se eligen con cuatro fichas (X MES, X TURNO, X TRAMO, X EMPLEADO) que
-// adelantan el dato clave de cada vista para el mes elegido:
+// Se eligen con cinco fichas (X MES, X TURNO, X TRAMO, X EMPLEADO y, ancha
+// abajo, HORARIOS DEL PERSONAL) que adelantan el dato clave de cada vista para
+// el mes elegido:
 //   · "Por mes":   un bloque por mes con Efectivo, Digital, suma y Gastos.
 //   · "Por turno": lo facturado en Mañana, Tarde y Noche del mes elegido contra
 //     el mes anterior (en el mes en curso, hasta el mismo día y turno en los dos).
@@ -13,12 +14,15 @@
 //   · "Por empleado": cuánto subió o bajó el promedio por turno de cada
 //     integrante contra el mes anterior, según los cierres de turno. Debajo,
 //     el podio de turnos: cuál de los turnos subió más su promedio.
+//   · "Horarios del personal": quién llegó tarde o temprano, quién se fue
+//     antes y quién debe tiempo, como en FRKiosko (las cuentas, en horarios.js).
 // ============================================================
 import { state } from "./state.js";
 import { $, $$, escapeHtml, fechaBaseMes, fechaDeRegistro, mesLabel, MESES, money, TURNOS, TURNO_LABEL } from "./utils.js";
 import { payerColorVar } from "./identidad.js";
 import { gastosDelNegocio } from "./gastos.js";
 import { facturacionesDelNegocio } from "./facturado.js";
+import { fichaHorariosHtml, initHorarios, renderHorarios } from "./horarios.js";
 
 // El historial que baja de Firestore cubre 12 meses (HISTORIAL_MESES_CARGADOS
 // en utils.js): el mes actual + 11 hacia atrás.
@@ -882,6 +886,7 @@ function renderFichas(c) {
   dato("turno", fichaTurnosHtml(datosTurnos(ui.offset)));
   dato("tramo", fichaTramosHtml(act));
   dato("equipo", fichaEquipoHtml(datosEquipo(ui.offset), datosEquipo(ui.offset - 1)));
+  dato("horario", fichaHorariosHtml(act.base));
 }
 
 // ---------- Etiqueta "hasta el mismo día y turno" ----------
@@ -1028,6 +1033,12 @@ function renderTurno(c) {
   cont.innerHTML = turnoTotalesHtml(d) + turnoTablaHtml(d);
 }
 
+function renderHorario() {
+  const base = fechaBaseMes(ui.offset);
+  actualizarNavMes(base);
+  renderHorarios($("#cmp-horario-contenido"), base, mesLabel(base));
+}
+
 // Variación porcentual contra el mes anterior, como texto corto con flecha.
 // Vacío si el mes anterior no tiene nada con qué comparar.
 function variacionHtml(actual, anterior, subeEsBueno) {
@@ -1130,9 +1141,11 @@ export function renderComparar() {
   $("#cmp-vista-tramo").classList.toggle("hidden", ui.vista !== "tramo");
   $("#cmp-vista-turno").classList.toggle("hidden", ui.vista !== "turno");
   $("#cmp-vista-equipo").classList.toggle("hidden", ui.vista !== "equipo");
+  $("#cmp-vista-horario").classList.toggle("hidden", ui.vista !== "horario");
   if (ui.vista === "mes") renderMeses(corte);
   else if (ui.vista === "tramo") renderTramo();
   else if (ui.vista === "turno") renderTurno(corte);
+  else if (ui.vista === "horario") renderHorario();
   else renderEquipo();
   ui.animar = false;
 }
@@ -1172,6 +1185,7 @@ export function initComparar() {
     ui.animar = true;
     renderComparar();
   });
+  initHorarios(renderComparar);
   // Tocar fuera de un tramo cierra el tooltip (en el celular no hay "hover" que lo cierre).
   document.addEventListener("pointerdown", (e) => {
     if (!e.target.closest(".cmp-grupo")) ocultarTip();
